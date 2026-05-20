@@ -257,6 +257,7 @@ function renderAdd(){
   <p style="margin-bottom:20px">Starting point all snapshots are measured against.</p>
   <div class="card">
     <h3>Auto-fill from Spotify</h3>
+    <p style="margin-bottom:10px;font-size:13px;color:#888">Pulls artist image, latest release, first release date & career length automatically.</p>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <input id="sp-search-input" placeholder="Search artist name…" style="flex:1"
         onkeydown="if(event.key==='Enter'){event.preventDefault();doSpotifySearch();}"/>
@@ -287,10 +288,11 @@ function renderAdd(){
   </div>
   <div class="section">
     <h3>Spotify baseline</h3>
-    <div class="grid2">
-      <div class="field"><label>Monthly streams (manual)</label><input type="number" id="f-st" value="${b.monthlyStreams||''}" placeholder="e.g. 250000"/></div>
-      <div class="field"><label>Top track</label><input id="f-ts" value="${b.topSong||''}" placeholder="Song title"/></div>
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="field"><label>Monthly listeners</label><input type="number" id="f-st" value="${b.monthlyStreams||''}" placeholder="e.g. 250000"/></div>
+      <div class="field"><label>Spotify followers</label><input type="number" id="f-spf" value="${b._spFollowers||''}" placeholder="e.g. 1200000"/></div>
     </div>
+    <div class="field"><label>Top track</label><input id="f-ts" value="${b.topSong||''}" placeholder="e.g. God's Plan"/></div>
     ${b._mostRecentRelease?`<div style="background:#f8f8f8;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px;display:flex;flex-direction:column;gap:3px">
       <div>🆕 Latest: <strong>${b._mostRecentRelease}</strong> (${b._mostRecentReleaseType}) — ${b._mostRecentReleaseDate}</div>
       ${b._firstReleaseDate?`<div>📅 First release: <strong>${b._firstReleaseName}</strong> — ${b._firstReleaseDate}</div>`:''}
@@ -344,6 +346,7 @@ function submitArtist(){
     id:Date.now(), name, location:g('f-loc'), genre:g('f-genre'), source:g('f-src'),
     discovered:g('f-disc'), tiktokHandle:g('f-tth'),
     monthlyStreams:g('f-st'), topSong:g('f-ts'),
+    _spFollowers:g('f-spf')||b._spFollowers||'',
     igFollowers:g('f-igf'), igEngagement:g('f-ige'),
     tiktokFollowers:g('f-ttf'), tiktokViews:g('f-ttv'), tiktokEngagement:g('f-tte'),
     aesthetic:g('f-aes'), vibe:g('f-vib'), fanTactics:g('f-tac'),
