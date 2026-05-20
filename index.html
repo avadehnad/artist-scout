@@ -289,11 +289,15 @@ function renderAdd(){
   <div class="section">
     <h3>Spotify baseline</h3>
     <div class="grid2" style="margin-bottom:12px">
-      <div class="field"><label>Monthly listeners</label><input type="number" id="f-st" value="${b.monthlyStreams||''}" placeholder="e.g. 250000"/></div>
+      <div class="field"><label>Monthly listeners</label><input type="number" id="f-st" value="${b.monthlyStreams||''}" placeholder="e.g. 2500000"/></div>
       <div class="field"><label>Spotify followers</label><input type="number" id="f-spf" value="${b._spFollowers||''}" placeholder="e.g. 1200000"/></div>
     </div>
-    <div class="field"><label>Top track</label><input id="f-ts" value="${b.topSong||''}" placeholder="e.g. God's Plan"/></div>
-    ${b._mostRecentRelease?`<div style="background:#f8f8f8;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px;display:flex;flex-direction:column;gap:3px">
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="field"><label>Top track name</label><input id="f-ts" value="${b.topSong||''}" placeholder="e.g. God's Plan"/></div>
+      <div class="field"><label>Top track streams</label><input type="number" id="f-tss" value="${b.topTrackStreams||''}" placeholder="e.g. 1800000000"/></div>
+    </div>
+    <div class="field" style="max-width:220px"><label>Top track release date</label><input type="date" id="f-tsd" value="${b.topTrackDate||''}"/></div>
+    ${b._mostRecentRelease?`<div style="background:#f8f8f8;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:12px;display:flex;flex-direction:column;gap:3px">
       <div>🆕 Latest: <strong>${b._mostRecentRelease}</strong> (${b._mostRecentReleaseType}) — ${b._mostRecentReleaseDate}</div>
       ${b._firstReleaseDate?`<div>📅 First release: <strong>${b._firstReleaseName}</strong> — ${b._firstReleaseDate}</div>`:''}
     </div>`:''}
@@ -346,6 +350,7 @@ function submitArtist(){
     id:Date.now(), name, location:g('f-loc'), genre:g('f-genre'), source:g('f-src'),
     discovered:g('f-disc'), tiktokHandle:g('f-tth'),
     monthlyStreams:g('f-st'), topSong:g('f-ts'),
+    topTrackStreams:g('f-tss'), topTrackDate:g('f-tsd'),
     _spFollowers:g('f-spf')||b._spFollowers||'',
     igFollowers:g('f-igf'), igEngagement:g('f-ige'),
     tiktokFollowers:g('f-ttf'), tiktokViews:g('f-ttv'), tiktokEngagement:g('f-tte'),
@@ -451,10 +456,10 @@ function renderDetail(){
   <div class="section">
     <h3>Spotify</h3>
     <div class="metric-grid">
-      <div class="metric"><div class="ml">Monthly streams</div><div class="mv">${fmt(n(a.monthlyStreams))}</div>${ghtml(stG)}</div>
+      <div class="metric"><div class="ml">Monthly listeners</div><div class="mv">${fmt(n(a.monthlyStreams))}</div>${ghtml(stG)}</div>
       <div class="metric"><div class="ml">Spotify followers</div><div class="mv">${fmt(n(a._spFollowers))}</div></div>
-      ${a._spPopularity?`<div class="metric"><div class="ml">Popularity score</div><div class="mv">${a._spPopularity}/100</div></div>`:''}
-      ${a.topSong?`<div class="metric"><div class="ml">Top track</div><div class="mv" style="font-size:13px">${a.topSong}</div></div>`:''}
+      ${a._spPopularity?`<div class="metric"><div class="ml">Popularity</div><div class="mv">${a._spPopularity}/100</div></div>`:''}
+      ${a.topSong?`<div class="metric"><div class="ml">Top track</div><div class="mv" style="font-size:13px">${a.topSong}</div>${a.topTrackStreams?`<div style="font-size:11px;color:#888;margin-top:2px">${fmt(n(a.topTrackStreams))} streams${a.topTrackDate?' · '+a.topTrackDate:''}</div>`:''}</div>`:''}
     </div>
     ${(a.mostRecentRelease||a.firstReleaseDate)?`
     <div style="margin-top:10px;background:#f8f8f8;border-radius:8px;padding:10px 12px;font-size:13px;display:flex;flex-direction:column;gap:4px">
