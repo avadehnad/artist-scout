@@ -31,7 +31,16 @@ export default async function handler(req, res) {
       const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      return res.status(200).json(await r.json());
+      const data = await r.json();
+      // Enrich each artist with full details to get followers
+      const items = data.artists?.items || [];
+      const enriched = await Promise.all(items.map(async a => {
+        try {
+          const full = await fetch(`https://api.spotify.com/v1/artists/${a.id}`, { headers: { Authorization: `Bearer ${token}` } });
+          return await full.json();
+        } catch { return a; }
+      }));
+      return res.status(200).json({ artists: { items: enriched } });
     }
 
     // Artist data
