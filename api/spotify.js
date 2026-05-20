@@ -28,15 +28,21 @@ export default async function handler(req, res) {
       return res.status(200).json(d);
     }
 
-    // Get full artist data (top tracks + albums in parallel)
+    // Get full artist data
     if (action === 'artistData') {
-      const [tracksResp, albumsResp] = await Promise.all([
-        fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20`, { headers: { Authorization: `Bearer ${token}` } })
+      const [albumsResp, artistResp] = await Promise.all([
+        fetch(`https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://api.spotify.com/v1/artists/${artistId}`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
-      const tracks = await tracksResp.json();
       const albums = await albumsResp.json();
-      return res.status(200).json({ tracks, albums });
+      const artist = await artistResp.json();
+      // top-tracks needs market param
+      const tracksResp = await fetch(
+        `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=from_token`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const tracks = await tracksResp.json();
+      return res.status(200).json({ tracks, albums, artist });
     }
 
     res.status(400).json({ error: 'Unknown action' });
