@@ -35,19 +35,21 @@
   .section { margin-bottom: 24px; }
   .card { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
   .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
-  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
   .metric { background: #f8f8f8; border-radius: 8px; padding: 10px 12px; }
-  .metric .mlabel { font-size: 11px; color: #888; margin-bottom: 3px; }
-  .metric .mval { font-size: 18px; font-weight: 600; }
-  .metric .mgrowth { font-size: 11px; margin-top: 2px; }
-  .back { background: none; border: none; color: #888; font-size: 14px; padding: 0; cursor: pointer; margin-bottom: 16px; display:block; }
+  .metric .ml { font-size: 11px; color: #888; margin-bottom: 3px; }
+  .metric .mv { font-size: 17px; font-weight: 600; }
+  .metric .mg { font-size: 11px; margin-top: 2px; }
+  .back { background: none; border: none; color: #888; font-size: 14px; padding: 0; cursor: pointer; margin-bottom: 16px; display: block; }
   .back:hover { background: none; color: #333; }
   .artist-row { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 14px 16px; cursor: pointer; margin-bottom: 10px; transition: border-color 0.15s; }
   .artist-row:hover { border-color: #bbb; }
   .top-pick { background: #f0f7ff; border: 1px solid #c0d8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; cursor: pointer; }
   .sp-result { display: flex; align-items: center; gap: 10px; padding: 10px; background: #f8f8f8; border-radius: 8px; cursor: pointer; margin-top: 6px; border: 1px solid #eee; }
-  .sp-result:hover { background: #f0f0f0; }
-  .sp-result img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; flex-shrink:0; }
+  .sp-result:hover { background: #efefef; }
+  .sp-result img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+  .sp-prefill { background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 10px; padding: 12px 14px; margin-top: 10px; display: flex; align-items: center; gap: 12px; }
+  .sp-prefill img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
   .factor { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; margin: 3px; }
   .factor.pos { background: #e8f5e9; color: #2e7d32; }
   .factor.neg { background: #ffebee; color: #c62828; }
@@ -56,14 +58,13 @@
   .snap-table td { padding: 6px 8px; border-bottom: 1px solid #f5f5f5; }
   .hrow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
   .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .spotify-auto { background: #f0f7ff; border: 1px solid #c0d8f0; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #185FA5; margin-top: 4px; }
   @media(max-width:500px){ .grid2{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 <div class="app" id="app"></div>
-
 <script>
-// ── STATE ──────────────────────────────────────────────────────────────────
 const SK = 'artist-scout-v2';
 const CK = 'artist-scout-creds';
 
@@ -74,40 +75,39 @@ const STATUS = {
   breakthrough: { label:'Breakthrough', color:'#0F6E56', bg:'#E1F5EE' },
   faded:        { label:'Faded',        color:'#A32D2D', bg:'#FCEBEB' },
 };
-const GENRES   = ['Afrobeats','Country','Electronic','Hip-Hop','Indie','Latin','Pop','R&B','Rock','Soul','Other'];
-const SOURCES  = ['Spotify','Instagram','TikTok','YouTube','Friend','Press','Other'];
+const GENRES     = ['Afrobeats','Country','Electronic','Hip-Hop','Indie','Latin','Pop','R&B','Rock','Soul','Other'];
+const SOURCES    = ['Spotify','Instagram','TikTok','YouTube','Friend','Press','Other'];
 const AESTHETICS = ['Dark & moody','Colorful & maximalist','Clean & minimalist','Retro/nostalgic','Streetwear','Avant-garde','Natural/earthy','Glamorous','Raw & DIY','Other'];
-const VIBES    = ['Introspective','Party/hype','Romantic','Rebellious','Spiritual','Playful','Mysterious','Motivational','Melancholic','Other'];
+const VIBES      = ['Introspective','Party/hype','Romantic','Rebellious','Spiritual','Playful','Mysterious','Motivational','Melancholic','Other'];
 
 let artists = [], spClientId = '', spSecret = '', rapidKey = '', spToken = null;
 let view = 'roster', selectedId = null, pendingBench = null;
 let rosterSearch = '', rosterFilter = 'all';
-let spResults = [], spSearching = false;
+let spResults = [];
 
 function loadStorage(){
   try { artists = JSON.parse(localStorage.getItem(SK)||'[]'); } catch {}
   try { const c=JSON.parse(localStorage.getItem(CK)||'{}'); spClientId=c.id||''; spSecret=c.sec||''; rapidKey=c.rk||''; } catch {}
 }
 function saveArtists(){ localStorage.setItem(SK, JSON.stringify(artists)); }
-function saveCreds(){ localStorage.setItem(CK, JSON.stringify({id:spClientId, sec:spSecret, rk:rapidKey})); }
+function saveCreds(){ localStorage.setItem(CK, JSON.stringify({id:spClientId,sec:spSecret,rk:rapidKey})); }
 
-// ── UTILS ──────────────────────────────────────────────────────────────────
-const n = v => (v===''||v==null) ? null : Number(v);
+const n   = v => (v===''||v==null)?null:Number(v);
 const fmt = v => { if(v==null||v==='') return '—'; v=Number(v); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v); };
-const pct = v => v==null ? '—' : Number(v).toFixed(1)+'%';
-const gPct = (a,b) => (a==null||b==null||a===0) ? null : ((b-a)/a)*100;
+const pct = v => v==null?'—':Number(v).toFixed(1)+'%';
+const gPct= (a,b)=>(a==null||b==null||a===0)?null:((b-a)/a)*100;
 
-function score(a){
+function scoreArtist(a){
   const snaps=a.snapshots||[]; let s=0; const f=[];
-  const ie=n(a.igEngagement), te=n(a.tiktokEngagement), igf=n(a.igFollowers), st=n(a.monthlyStreams);
+  const ie=n(a.igEngagement),te=n(a.tiktokEngagement),igf=n(a.igFollowers),st=n(a.monthlyStreams);
   if(ie!=null){ if(ie>=6){s+=25;f.push({l:'High IG engagement',v:ie.toFixed(1)+'%',p:1});}else if(ie>=3){s+=12;f.push({l:'Decent IG engagement',v:ie.toFixed(1)+'%',p:1});}else f.push({l:'Low IG engagement',v:ie.toFixed(1)+'%',p:0}); }
   if(te!=null){ if(te>=5){s+=20;f.push({l:'Strong TikTok engagement',v:te.toFixed(1)+'%',p:1});}else if(te>=2){s+=10;f.push({l:'Moderate TikTok engagement',v:te.toFixed(1)+'%',p:1});}else f.push({l:'Weak TikTok engagement',v:te.toFixed(1)+'%',p:0}); }
   if(st!=null&&igf!=null&&igf>0){ const r=st/igf; if(r>=5){s+=15;f.push({l:'Great stream/follower ratio',v:r.toFixed(1)+'x',p:1});}else if(r>=2){s+=7;f.push({l:'OK stream/follower ratio',v:r.toFixed(1)+'x',p:1});}else f.push({l:'Low stream/follower ratio',v:r.toFixed(1)+'x',p:0}); }
   if(snaps.length>=2){
-    const first=snaps[0],last=snaps[snaps.length-1];
-    const ig=gPct(n(first.igFollowers),n(last.igFollowers));
-    const tt=gPct(n(first.tiktokFollowers),n(last.tiktokFollowers));
-    const sp=gPct(n(first.monthlyStreams),n(last.monthlyStreams));
+    const fi=snaps[0],la=snaps[snaps.length-1];
+    const ig=gPct(n(fi.igFollowers),n(la.igFollowers));
+    const tt=gPct(n(fi.tiktokFollowers),n(la.tiktokFollowers));
+    const sp=gPct(n(fi.monthlyStreams),n(la.monthlyStreams));
     if(ig>20){s+=Math.min(15,ig/5);f.push({l:'IG growth',v:'+'+ig.toFixed(0)+'%',p:1});}
     if(tt>20){s+=Math.min(15,tt/5);f.push({l:'TikTok growth',v:'+'+tt.toFixed(0)+'%',p:1});}
     if(sp>20){s+=Math.min(15,sp/5);f.push({l:'Stream growth',v:'+'+sp.toFixed(0)+'%',p:1});}
@@ -120,10 +120,10 @@ function score(a){
   return {score:Math.min(100,Math.round(s)),factors:f};
 }
 
-const sbadge = st => { const m=STATUS[st]||STATUS.watching; return `<span class="badge" style="background:${m.bg};color:${m.color}">${m.label}</span>`; };
-const scbadge = s => { if(s==null) return `<span style="font-size:12px;color:#888">log data to score</span>`; const c=s>=70?'#0F6E56':s>=40?'#185FA5':'#888'; const bg=s>=70?'#E1F5EE':s>=40?'#E6F1FB':'#F1EFE8'; return `<span class="badge" style="background:${bg};color:${c}">${s}/100</span>`; };
+const sbadge  = st => { const m=STATUS[st]||STATUS.watching; return `<span class="badge" style="background:${m.bg};color:${m.color}">${m.label}</span>`; };
+const scbadge = s  => { if(s==null) return `<span style="font-size:12px;color:#888">log data to score</span>`; const c=s>=70?'#0F6E56':s>=40?'#185FA5':'#888'; const bg=s>=70?'#E1F5EE':s>=40?'#E6F1FB':'#F1EFE8'; return `<span class="badge" style="background:${bg};color:${c}">${s}/100</span>`; };
 
-// ── SPOTIFY API ────────────────────────────────────────────────────────────
+// ── SPOTIFY ────────────────────────────────────────────────────────────────
 async function getSpToken(){
   if(spToken&&spToken.exp>Date.now()) return spToken.tok;
   const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`grant_type=client_credentials&client_id=${encodeURIComponent(spClientId)}&client_secret=${encodeURIComponent(spSecret)}`});
@@ -134,54 +134,121 @@ async function getSpToken(){
 }
 
 async function doSpotifySearch(){
-  const q = document.getElementById('sp-search-input')?.value?.trim();
+  const q=document.getElementById('sp-search-input')?.value?.trim();
   if(!q) return;
-  spSearching=true; spResults=[];
-  document.getElementById('sp-status').textContent='Searching Spotify…';
+  spResults=[];
+  document.getElementById('sp-status').textContent='Searching…';
   document.getElementById('sp-results').innerHTML='';
   try{
     const tok=await getSpToken();
     const r=await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`,{headers:{Authorization:'Bearer '+tok}});
     const d=await r.json();
     spResults=d.artists?.items||[];
-    document.getElementById('sp-status').textContent='';
+    document.getElementById('sp-status').textContent=spResults.length?'':'No results found.';
     document.getElementById('sp-results').innerHTML=spResults.map((a,i)=>`
       <div class="sp-result" onclick="pickSpotify(${i})">
         ${a.images?.[0]?`<img src="${a.images[0].url}"/>`:'<div style="width:40px;height:40px;background:#eee;border-radius:4px;flex-shrink:0"></div>'}
-        <div><div style="font-weight:600">${a.name}</div><div style="font-size:12px;color:#888">${fmt(a.followers?.total)} followers${a.genres?.[0]?' · '+a.genres[0]:''}</div></div>
+        <div>
+          <div style="font-weight:600">${a.name}</div>
+          <div style="font-size:12px;color:#888">${fmt(a.followers?.total)} followers${a.genres?.[0]?' · '+a.genres[0]:''}</div>
+        </div>
       </div>`).join('');
-  }catch(e){
-    document.getElementById('sp-status').textContent='Error — check Spotify credentials in Settings';
-  }
-  spSearching=false;
+  }catch(e){ document.getElementById('sp-status').textContent='Error — check Spotify credentials in Settings'; }
 }
 
-function pickSpotify(i){
-  const a=spResults[i];
+async function pickSpotify(i){
+  const artist=spResults[i];
   if(!pendingBench) pendingBench={};
-  pendingBench.name=a.name;
-  pendingBench.genre=a.genres?.[0]?(a.genres[0][0].toUpperCase()+a.genres[0].slice(1)):'';
-  pendingBench._img=a.images?.[0]?.url||'';
-  pendingBench._spFollowers=a.followers?.total||'';
-  spResults=[];
-  // update fields without full re-render
-  const nameEl=document.getElementById('f-name');
-  const genreEl=document.getElementById('f-genre');
-  const imgEl=document.getElementById('sp-picked-img');
-  if(nameEl) nameEl.value=pendingBench.name;
-  if(genreEl) genreEl.value=pendingBench.genre;
-  if(imgEl && pendingBench._img) { imgEl.src=pendingBench._img; imgEl.style.display='block'; }
+
   document.getElementById('sp-results').innerHTML='';
-  document.getElementById('sp-search-input').value='';
+  document.getElementById('sp-status').textContent='Loading artist data…';
+
+  try{
+    const tok=await getSpToken();
+
+    // Top tracks
+    const tracksResp=await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,{headers:{Authorization:'Bearer '+tok}});
+    const tracksData=await tracksResp.json();
+    const topTrack=tracksData.tracks?.[0]||null;
+
+    // All albums to find most recent + earliest release
+    const albumsResp=await fetch(`https://api.spotify.com/v1/artists/${artist.id}/albums?include_groups=album,single&market=US&limit=50`,{headers:{Authorization:'Bearer '+tok}});
+    const albumsData=await albumsResp.json();
+    const albums=albumsData.items||[];
+
+    let mostRecent=null, earliest=null;
+    albums.forEach(al=>{
+      if(!mostRecent||al.release_date>mostRecent.release_date) mostRecent=al;
+      if(!earliest||al.release_date<earliest.release_date) earliest=al;
+    });
+
+    // Most recent release track count / streams (get full album for track details)
+    let recentStreams=null;
+    if(mostRecent){
+      const fullAlbum=await fetch(`https://api.spotify.com/v1/albums/${mostRecent.id}`,{headers:{Authorization:'Bearer '+tok}});
+      const fd=await fullAlbum.json();
+      // Spotify doesn't expose stream counts on album tracks, but we can note track count
+      mostRecent._trackCount=fd.tracks?.total||null;
+    }
+
+    // Fill pending bench
+    pendingBench.name=artist.name;
+    pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
+    pendingBench._img=artist.images?.[0]?.url||'';
+    pendingBench._spFollowers=artist.followers?.total||'';
+    pendingBench._spId=artist.id;
+    pendingBench.topSong=topTrack?.name||'';
+    pendingBench._topTrackStreams=topTrack?.popularity||''; // popularity 0-100 as proxy
+    pendingBench._mostRecentRelease=mostRecent?.name||'';
+    pendingBench._mostRecentReleaseDate=mostRecent?.release_date||'';
+    pendingBench._mostRecentReleaseType=mostRecent?.album_type||'';
+    pendingBench._mostRecentTrackCount=mostRecent?._trackCount||'';
+    pendingBench._firstReleaseDate=earliest?.release_date||'';
+    pendingBench._firstReleaseName=earliest?.name||'';
+
+    document.getElementById('sp-status').textContent='';
+    document.getElementById('sp-search-input').value='';
+
+    // Update fields inline
+    const set=(id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
+    set('f-name', pendingBench.name);
+    set('f-genre', pendingBench.genre);
+    set('f-ts', pendingBench.topSong);
+
+    // Show prefill summary
+    document.getElementById('sp-prefill').innerHTML=`
+      <div class="sp-prefill">
+        ${pendingBench._img?`<img src="${pendingBench._img}"/>`:''}
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${pendingBench.name} <span style="font-weight:400;color:#666;font-size:12px">auto-filled from Spotify ✓</span></div>
+          <div style="font-size:12px;color:#444;margin-top:3px;display:flex;flex-direction:column;gap:2px">
+            <div>👥 <strong>${fmt(pendingBench._spFollowers)}</strong> Spotify followers</div>
+            ${topTrack?`<div>🎵 Top track: <strong>${topTrack.name}</strong> (popularity ${topTrack.popularity}/100)</div>`:''}
+            ${mostRecent?`<div>🆕 Latest: <strong>${mostRecent.name}</strong> (${mostRecent.album_type}) — ${mostRecent.release_date}</div>`:''}
+            ${earliest&&earliest.id!==mostRecent?.id?`<div>📅 First release: <strong>${earliest.name}</strong> — ${earliest.release_date}</div>`:''}
+          </div>
+        </div>
+      </div>`;
+
+  }catch(e){
+    document.getElementById('sp-status').textContent='Could not load full artist data — try again';
+    // Still fill basic info
+    pendingBench.name=artist.name;
+    pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
+    pendingBench._img=artist.images?.[0]?.url||'';
+    const set=(id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
+    set('f-name',pendingBench.name);
+    set('f-genre',pendingBench.genre);
+  }
 }
 
-// ── TIKTOK API ─────────────────────────────────────────────────────────────
+// ── TIKTOK ─────────────────────────────────────────────────────────────────
 async function doFetchTikTok(id){
   const a=artists.find(x=>x.id===id);
   if(!a?.tiktokHandle){ alert('Add a TikTok @username to this artist first'); return; }
   if(!rapidKey){ alert('Add your RapidAPI key in ⚙ Settings'); return; }
   const handle=a.tiktokHandle.replace('@','').trim();
-  const btn=document.getElementById('tt-fetch-btn');
+  const btn=document.getElementById('tt-btn');
   if(btn){ btn.textContent='Fetching…'; btn.disabled=true; }
   try{
     const r=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}});
@@ -189,13 +256,12 @@ async function doFetchTikTok(id){
     const stats=d?.user_info?.stats||d?.userInfo?.stats||d?.stats||{};
     const followers=stats.followerCount||d?.followerCount||null;
     const likes=stats.heartCount||d?.heartCount||null;
-    if(!followers){ alert('No data returned — check the @username is correct'); if(btn){btn.textContent='↻ fetch TikTok';btn.disabled=false;} return; }
+    if(!followers){ alert('No data returned — double check the @username'); if(btn){btn.textContent='↻ TikTok';btn.disabled=false;} return; }
     artists=artists.map(x=>x.id===id?{...x,tiktokFollowers:String(followers),tiktokLikes:String(likes||''),tiktokLastFetched:new Date().toISOString().slice(0,10)}:x);
-    saveArtists();
-    goTo('detail');
+    saveArtists(); goTo('detail');
   }catch(e){
-    alert('TikTok fetch failed — check your RapidAPI key in Settings');
-    if(btn){btn.textContent='↻ fetch TikTok';btn.disabled=false;}
+    alert('TikTok fetch failed — check your RapidAPI key');
+    if(btn){btn.textContent='↻ TikTok';btn.disabled=false;}
   }
 }
 
@@ -208,10 +274,10 @@ function startAdd(){ pendingBench={}; spResults=[]; goTo('add'); }
 function renderApp(){
   const el=document.getElementById('app');
   if(view==='settings') el.innerHTML=renderSettings();
-  else if(view==='add')  el.innerHTML=renderAdd();
-  else if(view==='snap') el.innerHTML=renderSnap();
+  else if(view==='add')    el.innerHTML=renderAdd();
+  else if(view==='snap')   el.innerHTML=renderSnap();
   else if(view==='detail') el.innerHTML=renderDetail();
-  else el.innerHTML=renderRoster();
+  else { el.innerHTML=renderRoster(); setTimeout(updateRosterList,0); }
 }
 
 // SETTINGS
@@ -221,15 +287,13 @@ function renderSettings(){
   <h2 style="margin-bottom:4px">Settings</h2>
   <p style="margin-bottom:20px">Credentials stored only in your browser.</p>
   <div style="max-width:460px;display:flex;flex-direction:column;gap:20px">
-    <div>
-      <h3>Spotify</h3>
+    <div><h3>Spotify</h3>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="field"><label>Client ID</label><input type="password" id="s-id" value="${spClientId}" placeholder="Paste Client ID"/></div>
         <div class="field"><label>Client Secret</label><input type="password" id="s-sec" value="${spSecret}" placeholder="Paste Client Secret"/></div>
       </div>
     </div>
-    <div>
-      <h3>TikTok — RapidAPI (ScrapTik)</h3>
+    <div><h3>TikTok — RapidAPI (ScrapTik)</h3>
       <div class="field"><label>RapidAPI Key</label><input type="password" id="s-rk" value="${rapidKey}" placeholder="Paste RapidAPI key"/></div>
     </div>
     <button class="primary" onclick="saveSettings()">Save</button>
@@ -249,19 +313,19 @@ function renderAdd(){
   return `
   <button class="back" onclick="goTo('roster')">← back</button>
   <h2 style="margin-bottom:4px">New artist — benchmark</h2>
-  <p style="margin-bottom:20px">This is the starting point all snapshots are measured against.</p>
+  <p style="margin-bottom:20px">Starting point all snapshots are measured against.</p>
 
   ${hasSp?`<div class="card">
     <h3>Auto-fill from Spotify</h3>
     <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input id="sp-search-input" placeholder="Search artist name on Spotify…" style="flex:1"
+      <input id="sp-search-input" placeholder="Search artist name…" style="flex:1"
         onkeydown="if(event.key==='Enter'){event.preventDefault();doSpotifySearch();}"/>
       <button onclick="doSpotifySearch()" style="white-space:nowrap">Search</button>
     </div>
     <div id="sp-status" style="font-size:12px;color:#888;min-height:16px"></div>
     <div id="sp-results"></div>
-    ${b._img?`<img id="sp-picked-img" src="${b._img}" style="width:48px;height:48px;border-radius:8px;margin-top:8px;object-fit:cover"/>`:'<img id="sp-picked-img" style="display:none;width:48px;height:48px;border-radius:8px;margin-top:8px;object-fit:cover"/>'}
-  </div>`:'<p style="margin-bottom:20px;font-size:13px;color:#888">Add Spotify credentials in Settings to enable auto-fill.</p>'}
+    <div id="sp-prefill"></div>
+  </div>`:`<p style="margin-bottom:20px;font-size:13px;color:#888">Add Spotify credentials in Settings to enable auto-fill.</p>`}
 
   <div class="section">
     <h3>Identity</h3>
@@ -284,11 +348,18 @@ function renderAdd(){
   </div>
 
   <div class="section">
-    <h3>Spotify baseline</h3>
-    <div class="grid2">
-      <div class="field"><label>Monthly streams</label><input type="number" id="f-st" value="${b.monthlyStreams||''}" placeholder="e.g. 250000"/></div>
-      <div class="field"><label>Most streamed song</label><input id="f-ts" value="${b.topSong||''}" placeholder="Song title"/></div>
+    <h3>Spotify data</h3>
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="field"><label>Monthly streams (manual)</label><input type="number" id="f-st" value="${b.monthlyStreams||''}" placeholder="e.g. 250000"/></div>
+      <div class="field"><label>Top track</label><input id="f-ts" value="${b.topSong||''}" placeholder="Auto-filled or type"/></div>
     </div>
+    ${b._mostRecentRelease?`
+    <div style="background:#f8f8f8;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+      <div style="color:#888;font-size:11px;margin-bottom:4px">SPOTIFY AUTO-FILLED</div>
+      <div>🆕 Latest release: <strong>${b._mostRecentRelease}</strong> (${b._mostRecentReleaseType||''}) — ${b._mostRecentReleaseDate||''}</div>
+      ${b._firstReleaseDate?`<div style="margin-top:3px">📅 First release: <strong>${b._firstReleaseName||''}</strong> — ${b._firstReleaseDate}</div>`:''}
+      <div style="margin-top:3px">👥 Spotify followers: <strong>${fmt(b._spFollowers)}</strong></div>
+    </div>`:''}
   </div>
 
   <div class="section">
@@ -337,6 +408,7 @@ function submitArtist(){
   const g=id=>document.getElementById(id)?.value||'';
   const name=g('f-name').trim();
   if(!name){ alert('Artist name is required'); return; }
+  const b=pendingBench||{};
   const a={
     id:Date.now(), name, location:g('f-loc'), genre:g('f-genre'), source:g('f-src'),
     discovered:g('f-disc'), tiktokHandle:g('f-tth'),
@@ -346,7 +418,13 @@ function submitArtist(){
     aesthetic:g('f-aes'), vibe:g('f-vib'), fanTactics:g('f-tac'),
     releaseFrequency:g('f-rf'), contentFrequency:g('f-cf'),
     notes:g('f-notes'), status:'watching', snapshots:[],
-    _img: pendingBench?._img||''
+    _img:b._img||'', _spFollowers:b._spFollowers||'',
+    topTrackPopularity:b._topTrackStreams||'',
+    mostRecentRelease:b._mostRecentRelease||'',
+    mostRecentReleaseDate:b._mostRecentReleaseDate||'',
+    mostRecentReleaseType:b._mostRecentReleaseType||'',
+    firstReleaseDate:b._firstReleaseDate||'',
+    firstReleaseName:b._firstReleaseName||'',
   };
   artists.push(a); saveArtists();
   pendingBench=null; selectedId=a.id; goTo('detail');
@@ -395,19 +473,28 @@ function submitSnap(){
 function renderDetail(){
   const a=artists.find(x=>x.id===selectedId);
   if(!a) return '';
-  const {score:sc,factors}=score(a);
+  const {score:sc,factors}=scoreArtist(a);
   const snaps=a.snapshots||[];
   const last=snaps.length?snaps[snaps.length-1]:null;
   const igG=last?gPct(n(a.igFollowers),n(last.igFollowers)):null;
   const ttG=last?gPct(n(a.tiktokFollowers),n(last.tiktokFollowers)):null;
   const stG=last?gPct(n(a.monthlyStreams),n(last.monthlyStreams)):null;
-  const ghtml=v=>v!=null?`<div class="mgrowth" style="color:${v>=0?'#2e7d32':'#c62828'}">${v>=0?'↑':'↓'} ${Math.abs(v).toFixed(0)}% since discovery</div>`:'';
+  const ghtml=v=>v!=null?`<div class="mg" style="color:${v>=0?'#2e7d32':'#c62828'}">${v>=0?'↑':'↓'} ${Math.abs(v).toFixed(0)}% since discovery</div>`:'';
+
+  // Calculate career length
+  let careerLen='';
+  if(a.firstReleaseDate){
+    const ms=Date.now()-new Date(a.firstReleaseDate).getTime();
+    const yrs=Math.floor(ms/(1000*60*60*24*365));
+    const mos=Math.floor((ms%(1000*60*60*24*365))/(1000*60*60*24*30));
+    careerLen=yrs>0?`${yrs}y ${mos}m`:mos>0?`${mos} months`:'< 1 month';
+  }
 
   return `
   <button class="back" onclick="goTo('roster')">← roster</button>
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
     <div style="display:flex;align-items:center;gap:12px">
-      ${a._img?`<img src="${a._img}" style="width:52px;height:52px;border-radius:8px;object-fit:cover"/>`:''}
+      ${a._img?`<img src="${a._img}" style="width:56px;height:56px;border-radius:10px;object-fit:cover"/>`:''}
       <div>
         <h2>${a.name}</h2>
         <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">
@@ -419,7 +506,7 @@ function renderDetail(){
     </div>
     <div class="btnrow">
       <button onclick="goTo('snap')">+ log data</button>
-      ${rapidKey&&a.tiktokHandle?`<button id="tt-fetch-btn" onclick="doFetchTikTok(${a.id})">↻ TikTok</button>`:''}
+      ${rapidKey&&a.tiktokHandle?`<button id="tt-btn" onclick="doFetchTikTok(${a.id})">↻ TikTok</button>`:''}
       <button class="danger" onclick="delArtist(${a.id})">delete</button>
     </div>
   </div>
@@ -436,39 +523,52 @@ function renderDetail(){
   ${factors.length?`<div class="card"><h3>Why this score</h3>${factors.map(f=>`<span class="factor ${f.p?'pos':'neg'}">${f.l} <strong>${f.v}</strong></span>`).join('')}</div>`:''}
 
   <div class="section">
-    <h3>Benchmark at discovery</h3>
+    <h3>Spotify</h3>
     <div class="metric-grid">
-      <div class="metric"><div class="mlabel">Monthly streams</div><div class="mval">${fmt(n(a.monthlyStreams))}</div>${ghtml(stG)}</div>
-      <div class="metric"><div class="mlabel">IG followers</div><div class="mval">${fmt(n(a.igFollowers))}</div>${ghtml(igG)}</div>
-      <div class="metric"><div class="mlabel">IG engagement</div><div class="mval">${pct(n(a.igEngagement))}</div></div>
-      <div class="metric"><div class="mlabel">TikTok followers</div><div class="mval">${fmt(n(a.tiktokFollowers))}</div>${ghtml(ttG)}</div>
-      <div class="metric"><div class="mlabel">TikTok engagement</div><div class="mval">${pct(n(a.tiktokEngagement))}</div></div>
-      ${a.tiktokLikes?`<div class="metric"><div class="mlabel">TikTok likes</div><div class="mval">${fmt(n(a.tiktokLikes))}</div>${a.tiktokLastFetched?`<div style="font-size:11px;color:#888;margin-top:2px">fetched ${a.tiktokLastFetched}</div>`:''}</div>`:''}
+      <div class="metric"><div class="ml">Monthly streams</div><div class="mv">${fmt(n(a.monthlyStreams))}</div>${ghtml(stG)}</div>
+      <div class="metric"><div class="ml">Spotify followers</div><div class="mv">${fmt(n(a._spFollowers))}</div></div>
+      ${a.topSong?`<div class="metric"><div class="ml">Top track</div><div class="mv" style="font-size:13px;font-weight:600">${a.topSong}</div>${a.topTrackPopularity?`<div style="font-size:11px;color:#888;margin-top:2px">popularity ${a.topTrackPopularity}/100</div>`:''}</div>`:''}
     </div>
-    ${a.topSong?`<p style="margin-top:8px;font-size:13px">Top song: <strong style="color:#1a1a1a">${a.topSong}</strong></p>`:''}
-    ${a.tiktokHandle?`<p style="font-size:13px;margin-top:4px">TikTok: <strong style="color:#1a1a1a">@${a.tiktokHandle.replace('@','')}</strong></p>`:''}
+    ${(a.mostRecentRelease||a.firstReleaseDate)?`
+    <div style="margin-top:10px;background:#f8f8f8;border-radius:8px;padding:10px 12px;font-size:13px;display:flex;flex-direction:column;gap:4px">
+      ${a.mostRecentRelease?`<div>🆕 Latest release: <strong>${a.mostRecentRelease}</strong>${a.mostRecentReleaseType?' ('+a.mostRecentReleaseType+')':''}${a.mostRecentReleaseDate?' — '+a.mostRecentReleaseDate:''}</div>`:''}
+      ${a.firstReleaseDate?`<div>📅 First release: <strong>${a.firstReleaseName||''}</strong> — ${a.firstReleaseDate}</div>`:''}
+      ${careerLen?`<div>⏱ Career length: <strong>${careerLen}</strong></div>`:''}
+    </div>`:''}
+  </div>
+
+  <div class="section">
+    <h3>Social — baseline at discovery</h3>
+    <div class="metric-grid">
+      <div class="metric"><div class="ml">IG followers</div><div class="mv">${fmt(n(a.igFollowers))}</div>${ghtml(igG)}</div>
+      <div class="metric"><div class="ml">IG engagement</div><div class="mv">${pct(n(a.igEngagement))}</div></div>
+      <div class="metric"><div class="ml">TikTok followers</div><div class="mv">${fmt(n(a.tiktokFollowers))}</div>${ghtml(ttG)}</div>
+      <div class="metric"><div class="ml">TikTok engagement</div><div class="mv">${pct(n(a.tiktokEngagement))}</div></div>
+      ${a.tiktokLikes?`<div class="metric"><div class="ml">TikTok likes</div><div class="mv">${fmt(n(a.tiktokLikes))}</div>${a.tiktokLastFetched?`<div style="font-size:11px;color:#888;margin-top:2px">fetched ${a.tiktokLastFetched}</div>`:''}</div>`:''}
+    </div>
+    ${a.tiktokHandle?`<p style="font-size:13px;margin-top:8px;color:#666">TikTok: <strong style="color:#1a1a1a">@${a.tiktokHandle.replace('@','')}</strong></p>`:''}
   </div>
 
   ${(a.aesthetic||a.vibe||a.fanTactics)?`
   <div class="section">
     <h3>Branding & strategy</h3>
     <div class="metric-grid">
-      ${a.aesthetic?`<div class="metric"><div class="mlabel">Aesthetic</div><div style="font-size:14px">${a.aesthetic}</div></div>`:''}
-      ${a.vibe?`<div class="metric"><div class="mlabel">Vibe</div><div style="font-size:14px">${a.vibe}</div></div>`:''}
-      ${a.releaseFrequency?`<div class="metric"><div class="mlabel">Releases</div><div style="font-size:14px">${a.releaseFrequency}</div></div>`:''}
-      ${a.contentFrequency?`<div class="metric"><div class="mlabel">Content</div><div style="font-size:14px">${a.contentFrequency}</div></div>`:''}
+      ${a.aesthetic?`<div class="metric"><div class="ml">Aesthetic</div><div style="font-size:14px">${a.aesthetic}</div></div>`:''}
+      ${a.vibe?`<div class="metric"><div class="ml">Vibe</div><div style="font-size:14px">${a.vibe}</div></div>`:''}
+      ${a.releaseFrequency?`<div class="metric"><div class="ml">Releases</div><div style="font-size:14px">${a.releaseFrequency}</div></div>`:''}
+      ${a.contentFrequency?`<div class="metric"><div class="ml">Content</div><div style="font-size:14px">${a.contentFrequency}</div></div>`:''}
     </div>
-    ${a.fanTactics?`<div class="metric" style="margin-top:10px"><div class="mlabel">Fan-building tactics</div><div style="font-size:14px;margin-top:4px">${a.fanTactics}</div></div>`:''}
+    ${a.fanTactics?`<div class="metric" style="margin-top:10px"><div class="ml">Fan-building tactics</div><div style="font-size:14px;margin-top:4px">${a.fanTactics}</div></div>`:''}
   </div>`:''}
 
   ${a.notes?`<p style="font-style:italic;color:#888;margin-bottom:20px;font-size:14px">"${a.notes}"</p>`:''}
 
   <div class="section">
     <h3>Snapshot history</h3>
-    ${!snaps.length?`<div style="text-align:center;padding:2rem;color:#aaa;border:1px dashed #ddd;border-radius:10px;font-size:14px">No snapshots yet — hit "+ log data" to start tracking growth</div>`:`
+    ${!snaps.length?`<div style="text-align:center;padding:2rem;color:#aaa;border:1px dashed #ddd;border-radius:10px;font-size:14px">No snapshots yet — hit "+ log data" to start tracking</div>`:`
     <div style="overflow-x:auto">
       <table class="snap-table">
-        <thead><tr><th>Date</th><th>Streams</th><th>IG flw</th><th>IG eng%</th><th>TT flw</th><th>TT eng%</th><th>Press</th><th>Collabs</th></tr></thead>
+        <thead><tr><th>Date</th><th>Streams</th><th>IG flw</th><th>IG%</th><th>TT flw</th><th>TT%</th><th>Press</th><th>Collabs</th></tr></thead>
         <tbody>${[...snaps].reverse().map(s=>`<tr>
           <td>${s.date}</td><td>${fmt(n(s.monthlyStreams))}</td><td>${fmt(n(s.igFollowers))}</td>
           <td>${pct(n(s.igEngagement))}</td><td>${fmt(n(s.tiktokFollowers))}</td>
@@ -481,13 +581,8 @@ function renderDetail(){
 
 // ROSTER
 function renderRoster(){
-  const ranked=[...artists].map(a=>({...a,_s:score(a)})).sort((a,b)=>b._s.score-a._s.score);
+  const ranked=[...artists].map(a=>({...a,_s:scoreArtist(a)})).sort((a,b)=>b._s.score-a._s.score);
   const top=ranked[0];
-  const q=rosterSearch.toLowerCase();
-  const filtered=ranked.filter(a=>
-    (!q||a.name.toLowerCase().includes(q)||a.genre.toLowerCase().includes(q)||(a.location||'').toLowerCase().includes(q))
-    &&(rosterFilter==='all'||a.status===rosterFilter)
-  );
   return `
   <div class="hrow">
     <div><h1>Artist scout</h1><p style="color:#888;font-size:13px">${artists.length} artist${artists.length!==1?'s':''} tracked</p></div>
@@ -496,7 +591,6 @@ function renderRoster(){
       <button class="primary" onclick="startAdd()">+ add artist</button>
     </div>
   </div>
-
   ${top&&top._s.score>0?`
   <div class="top-pick" onclick="selectArtist(${top.id})">
     <div style="font-size:11px;color:#185FA5;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">🏆 Top prediction pick</div>
@@ -508,7 +602,6 @@ function renderRoster(){
       ${scbadge(top._s.score)}
     </div>
   </div>`:''}
-
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
     <input id="roster-search" placeholder="Search artists…" value="${rosterSearch}"
       oninput="rosterSearch=this.value;updateRosterList()" style="flex:1;min-width:160px"/>
@@ -517,7 +610,6 @@ function renderRoster(){
       ${Object.entries(STATUS).map(([k,m])=>`<option value="${k}"${rosterFilter===k?' selected':''}>${m.label}</option>`).join('')}
     </select>
   </div>
-
   <div id="roster-list"></div>`;
 }
 
@@ -525,9 +617,9 @@ function updateRosterList(){
   const el=document.getElementById('roster-list');
   if(!el) return;
   const q=rosterSearch.toLowerCase();
-  const ranked=[...artists].map(a=>({...a,_s:score(a)})).sort((a,b)=>b._s.score-a._s.score);
+  const ranked=[...artists].map(a=>({...a,_s:scoreArtist(a)})).sort((a,b)=>b._s.score-a._s.score);
   const filtered=ranked.filter(a=>
-    (!q||a.name.toLowerCase().includes(q)||a.genre.toLowerCase().includes(q)||(a.location||'').toLowerCase().includes(q))
+    (!q||a.name.toLowerCase().includes(q)||(a.genre||'').toLowerCase().includes(q)||(a.location||'').toLowerCase().includes(q))
     &&(rosterFilter==='all'||a.status===rosterFilter)
   );
   if(!filtered.length){ el.innerHTML=`<div style="text-align:center;padding:3rem;color:#aaa;font-size:14px">${!artists.length?'No artists yet — add your first one!':'No results.'}</div>`; return; }
@@ -560,11 +652,8 @@ function updateRosterList(){
 function setStatus(id,st){ artists=artists.map(a=>a.id===id?{...a,status:st}:a); saveArtists(); renderApp(); }
 function delArtist(id){ if(confirm('Delete this artist?')){ artists=artists.filter(a=>a.id!==id); saveArtists(); goTo('roster'); } }
 
-// ── INIT ───────────────────────────────────────────────────────────────────
 loadStorage();
 renderApp();
-// render roster list after initial render
-setTimeout(updateRosterList, 0);
 </script>
 </body>
 </html>
