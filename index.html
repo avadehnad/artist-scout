@@ -157,9 +157,9 @@ async function pickSpotify(i){
       if(!earliest||al.release_date<earliest.release_date) earliest=al;
     });
     pendingBench.name=artist.name;
-    pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
+    pendingBench.genre=artistData?.genres?.[0]?(artistData.genres[0][0].toUpperCase()+artistData.genres[0].slice(1)):artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
     pendingBench._img=artist.images?.[0]?.url||'';
-    pendingBench._spFollowers=artist.followers?.total||'';
+    pendingBench._spFollowers=artistData?.followers?.total||artist.followers?.total||'';
     pendingBench._spPopularity=artistData?.popularity||'';
     pendingBench._mostRecentRelease=mostRecent?.name||'';
     pendingBench._mostRecentReleaseDate=mostRecent?.release_date||'';
@@ -171,14 +171,16 @@ async function pickSpotify(i){
     const set=(id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
     set('f-name',pendingBench.name);
     set('f-genre',pendingBench.genre);
+    pendingBench._spPopularity=artistData?.popularity||'';
     document.getElementById('sp-prefill').innerHTML=`
       <div class="sp-prefill">
         ${pendingBench._img?`<img src="${pendingBench._img}"/>`:''}
         <div style="flex:1">
           <div style="font-weight:600;font-size:14px">${pendingBench.name} <span style="font-weight:400;color:#2e7d32;font-size:12px">✓ auto-filled from Spotify</span></div>
           <div style="font-size:12px;color:#444;margin-top:4px;display:flex;flex-direction:column;gap:3px">
-            <div>👥 <strong>${fmt(pendingBench._spFollowers)}</strong> Spotify followers</div>
-            ${pendingBench._spPopularity?`<div>⭐ Popularity: <strong>${pendingBench._spPopularity}/100</strong></div>`:''}
+            <div>👥 <strong>${fmt(artistData?.followers?.total||artist.followers?.total)}</strong> Spotify followers</div>
+            ${artistData?.popularity?`<div>⭐ Popularity: <strong>${artistData.popularity}/100</strong></div>`:''}
+            ${artistData?.genres?.[0]?`<div>🎵 Genre: <strong>${artistData.genres[0]}</strong></div>`:''}
             ${mostRecent?`<div>🆕 Latest: <strong>${mostRecent.name}</strong> (${mostRecent.album_type}) — ${mostRecent.release_date}</div>`:''}
             ${earliest&&earliest.id!==mostRecent?.id?`<div>📅 First release: <strong>${earliest.name}</strong> — ${earliest.release_date}</div>`:''}
           </div>
