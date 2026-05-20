@@ -123,10 +123,12 @@ function scoreArtist(a){
 const sbadge  = st => { const m=STATUS[st]||STATUS.watching; return `<span class="badge" style="background:${m.bg};color:${m.color}">${m.label}</span>`; };
 const scbadge = s  => { if(s==null) return `<span style="font-size:12px;color:#888">log data to score</span>`; const c=s>=70?'#0F6E56':s>=40?'#185FA5':'#888'; const bg=s>=70?'#E1F5EE':s>=40?'#E6F1FB':'#F1EFE8'; return `<span class="badge" style="background:${bg};color:${c}">${s}/100</span>`; };
 
-// ── SPOTIFY ────────────────────────────────────────────────────────────────
+// ── SPOTIFY (via proxy) ────────────────────────────────────────────────────
+const PROXY = '/api/spotify';
+
 async function getSpToken(){
   if(spToken&&spToken.exp>Date.now()) return spToken.tok;
-  const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`grant_type=client_credentials&client_id=${encodeURIComponent(spClientId)}&client_secret=${encodeURIComponent(spSecret)}`});
+  const r=await fetch(`${PROXY}?action=token&clientId=${encodeURIComponent(spClientId)}&clientSecret=${encodeURIComponent(spSecret)}`);
   const d=await r.json();
   if(!d.access_token) throw new Error('bad creds');
   spToken={tok:d.access_token,exp:Date.now()+(d.expires_in-60)*1000};
@@ -141,7 +143,7 @@ async function doSpotifySearch(){
   document.getElementById('sp-results').innerHTML='';
   try{
     const tok=await getSpToken();
-    const r=await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`,{headers:{Authorization:'Bearer '+tok}});
+    const r=await fetch(`${PROXY}?action=search&token=${encodeURIComponent(tok)}&q=${encodeURIComponent(q)}`);
     const d=await r.json();
     spResults=d.artists?.items||[];
     document.getElementById('sp-status').textContent=spResults.length?'':'No results found.';
@@ -161,23 +163,14 @@ async function pickSpotify(i){
   if(!pendingBench) pendingBench={};
   document.getElementById('sp-results').innerHTML='';
   document.getElementById('sp-status').textContent='Loading full artist data…';
-
   try{
     const tok=await getSpToken();
+    const r=await fetch(`${PROXY}?action=artistData&token=${encodeURIComponent(tok)}&artistId=${artist.id}`);
+    const d=await r.json();
 
-    // Fetch all in parallel
-    const [tracksResp, albumsResp] = await Promise.all([
-      fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,{headers:{Authorization:'Bearer '+tok}}),
-      fetch(`https://api.spotify.com/v1/artists/${artist.id}/albums?include_groups=album,single&market=US&limit=50`,{headers:{Authorization:'Bearer '+tok}})
-    ]);
-
-    const tracksData = await tracksResp.json();
-    const albumsData = await albumsResp.json();
-
-    const topTrack = tracksData.tracks?.[0]||null;
-    const albums = albumsData.items||[];
-
-    let mostRecent=null, earliest=null;
+    const topTrack=d.tracks?.tracks?.[0]||null;
+    const albums=d.albums?.items||[];
+    let mostRecent=null,earliest=null;
     albums.forEach(al=>{
       if(!mostRecent||al.release_date>mostRecent.release_date) mostRecent=al;
       if(!earliest||al.release_date<earliest.release_date) earliest=al;
@@ -198,13 +191,11 @@ async function pickSpotify(i){
     document.getElementById('sp-status').textContent='';
     document.getElementById('sp-search-input').value='';
 
-    // Update fields inline without re-render
     const set=(id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
-    set('f-name', pendingBench.name);
-    set('f-genre', pendingBench.genre);
-    set('f-ts', pendingBench.topSong);
+    set('f-name',pendingBench.name);
+    set('f-genre',pendingBench.genre);
+    set('f-ts',pendingBench.topSong);
 
-    // Show green summary
     document.getElementById('sp-prefill').innerHTML=`
       <div class="sp-prefill">
         ${pendingBench._img?`<img src="${pendingBench._img}"/>`:''}
@@ -218,10 +209,9 @@ async function pickSpotify(i){
           </div>
         </div>
       </div>`;
-
   }catch(e){
     console.error(e);
-    document.getElementById('sp-status').textContent='Could not load full data — saved basic info only';
+    document.getElementById('sp-status').textContent='Could not load full data — basic info saved';
     pendingBench.name=artist.name;
     pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
     pendingBench._img=artist.images?.[0]?.url||'';
@@ -233,7 +223,7 @@ async function pickSpotify(i){
       <div class="sp-prefill" style="background:#fff8e1;border-color:#ffe082">
         ${pendingBench._img?`<img src="${pendingBench._img}"/>`:''}
         <div><div style="font-weight:600">${pendingBench.name}</div>
-        <div style="font-size:12px;color:#888;margin-top:2px">Basic info loaded. Top tracks/releases unavailable — CORS restriction on this browser.</div></div>
+        <div style="font-size:12px;color:#888;margin-top:2px">Basic info saved. Could not load full data — try again.</div></div>
       </div>`;
   }
 }
