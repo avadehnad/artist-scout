@@ -13,7 +13,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Always get a fresh token server-side
     const tokenResp = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -24,29 +23,33 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Could not get Spotify token', details: tokenData });
     }
     const token = tokenData.access_token;
-
     const { action, q, artistId } = req.query;
 
-    // Search — return basic results without enrichment (followers/genres come from artistData)
     if (action === 'search') {
+      // Search then enrich first result with full data
       const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return res.status(200).json(await r.json());
     }
 
-    // Artist data
     if (action === 'artistData') {
+      // Fetch albums and full artist data separately
       const [albumsResp, artistResp] = await Promise.all([
         fetch(`https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=10`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
-          headers: { Authorization: `Bearer ${token}`, 'Accept-Language': 'en' }
+          headers: { Authorization: `Bearer ${token}` }
         })
       ]);
+
       const albums = await albumsResp.json();
       const artist = await artistResp.json();
+
+      // Log what we got to debug
+      console.log('Artist data:', JSON.stringify(artist).slice(0, 500));
+
       return res.status(200).json({ albums, artist });
     }
 
