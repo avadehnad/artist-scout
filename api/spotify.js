@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -26,21 +27,12 @@ export default async function handler(req, res) {
 
     const { action, q, artistId } = req.query;
 
-    // Search
+    // Search — return basic results without enrichment (followers/genres come from artistData)
     if (action === 'search') {
       const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await r.json();
-      // Enrich each artist with full details to get followers
-      const items = data.artists?.items || [];
-      const enriched = await Promise.all(items.map(async a => {
-        try {
-          const full = await fetch(`https://api.spotify.com/v1/artists/${a.id}`, { headers: { Authorization: `Bearer ${token}` } });
-          return await full.json();
-        } catch { return a; }
-      }));
-      return res.status(200).json({ artists: { items: enriched } });
+      return res.status(200).json(await r.json());
     }
 
     // Artist data
@@ -50,7 +42,7 @@ export default async function handler(req, res) {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}`, 'Accept-Language': 'en' }
         })
       ]);
       const albums = await albumsResp.json();
