@@ -508,8 +508,7 @@ function renderRoster(){
       </div>
     </div>`:''}
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-      <input placeholder="Search name, genre, location…" value="${state.search}" oninput="state.search=this.value;render()" style="flex:1;min-width:160px"/>
-      <select onchange="state.filterStatus=this.value;render()" style="width:auto">
+     <input placeholder="Search name, genre, location…" id="search-input" value="${state.search}" oninput="state.search=this.value;renderList()" style="flex:1;min-width:160px"/>
         <option value="all"${state.filterStatus==='all'?' selected':''}>All statuses</option>
         ${Object.entries(STATUS_META).map(([k,m])=>`<option value="${k}"${state.filterStatus===k?' selected':''}>${m.label}</option>`).join('')}
       </select>
