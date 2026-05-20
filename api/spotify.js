@@ -31,8 +31,8 @@ export default async function handler(req, res) {
     // Get full artist data (top tracks + albums in parallel)
     if (action === 'artistData') {
       const [tracksResp, albumsResp] = await Promise.all([
-        fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&market=US&limit=50`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
       const tracks = await tracksResp.json();
       const albums = await albumsResp.json();
