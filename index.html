@@ -168,8 +168,9 @@ async function pickSpotify(i){
     const r=await fetch(`${PROXY}?action=artistData&token=${encodeURIComponent(tok)}&artistId=${artist.id}`);
     const d=await r.json();
 
-    const topTrack=d.tracks?.tracks?.[0]||null;
     const albums=d.albums?.items||[];
+    const artistData=d.artist||null;
+    const topTrack=null; // top-tracks not available with client credentials
     let mostRecent=null,earliest=null;
     albums.forEach(al=>{
       if(!mostRecent||al.release_date>mostRecent.release_date) mostRecent=al;
@@ -180,8 +181,9 @@ async function pickSpotify(i){
     pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
     pendingBench._img=artist.images?.[0]?.url||'';
     pendingBench._spFollowers=artist.followers?.total||'';
-    pendingBench.topSong=topTrack?.name||'';
-    pendingBench._topTrackPopularity=topTrack?.popularity||'';
+    pendingBench._spPopularity=artistData?.popularity||'';
+    pendingBench.topSong='';
+    pendingBench._topTrackPopularity='';
     pendingBench._mostRecentRelease=mostRecent?.name||'';
     pendingBench._mostRecentReleaseDate=mostRecent?.release_date||'';
     pendingBench._mostRecentReleaseType=mostRecent?.album_type||'';
@@ -203,7 +205,7 @@ async function pickSpotify(i){
           <div style="font-weight:600;font-size:14px">${pendingBench.name} <span style="font-weight:400;color:#2e7d32;font-size:12px">✓ auto-filled from Spotify</span></div>
           <div style="font-size:12px;color:#444;margin-top:4px;display:flex;flex-direction:column;gap:3px">
             <div>👥 <strong>${fmt(pendingBench._spFollowers)}</strong> Spotify followers</div>
-            ${topTrack?`<div>🎵 Top track: <strong>${topTrack.name}</strong> (popularity ${topTrack.popularity}/100)</div>`:''}
+            ${pendingBench._spPopularity?`<div>⭐ Spotify popularity score: <strong>${pendingBench._spPopularity}/100</strong></div>`:''}
             ${mostRecent?`<div>🆕 Latest: <strong>${mostRecent.name}</strong> (${mostRecent.album_type}) — ${mostRecent.release_date}</div>`:''}
             ${earliest&&earliest.id!==mostRecent?.id?`<div>📅 First release: <strong>${earliest.name}</strong> — ${earliest.release_date}</div>`:''}
           </div>
