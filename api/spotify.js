@@ -26,11 +26,17 @@ export default async function handler(req, res) {
     const { action, q, artistId } = req.query;
 
     if (action === 'search') {
-      // Search then enrich first result with full data
       const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      return res.status(200).json(await r.json());
+      const data = await r.json();
+      // Fetch full details for each artist to get followers + genres
+      const items = data.artists?.items || [];
+      const enriched = await Promise.all(items.map(a =>
+        fetch(`https://api.spotify.com/v1/artists/${a.id}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json()).catch(() => a)
+      ));
+      return res.status(200).json({ artists: { items: enriched } });
     }
 
     if (action === 'artistData') {
