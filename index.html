@@ -142,6 +142,9 @@ async function doSpotifySearch(){
 
 async function pickSpotify(i){
   const artist=spResults[i];
+  // Store genre and followers from search results before they get lost
+  const searchGenre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
+  const searchFollowers=artist.followers?.total||'';
   if(!pendingBench) pendingBench={};
   document.getElementById('sp-results').innerHTML='';
   document.getElementById('sp-status').textContent='Loading artist data…';
@@ -157,9 +160,9 @@ async function pickSpotify(i){
       if(!earliest||al.release_date<earliest.release_date) earliest=al;
     });
     pendingBench.name=artist.name;
-    pendingBench.genre=artistData?.genres?.[0]?(artistData.genres[0][0].toUpperCase()+artistData.genres[0].slice(1)):artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
+    pendingBench.genre=artistData?.genres?.[0]?(artistData.genres[0][0].toUpperCase()+artistData.genres[0].slice(1)):searchGenre;
     pendingBench._img=artist.images?.[0]?.url||'';
-    pendingBench._spFollowers=artistData?.followers?.total||artist.followers?.total||'';
+    pendingBench._spFollowers=artistData?.followers?.total||searchFollowers;
     pendingBench._spPopularity=artistData?.popularity||'';
     pendingBench._mostRecentRelease=mostRecent?.name||'';
     pendingBench._mostRecentReleaseDate=mostRecent?.release_date||'';
