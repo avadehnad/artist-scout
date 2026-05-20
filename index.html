@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -150,7 +151,7 @@ async function doSpotifySearch(){
         ${a.images?.[0]?`<img src="${a.images[0].url}"/>`:'<div style="width:40px;height:40px;background:#eee;border-radius:4px;flex-shrink:0"></div>'}
         <div>
           <div style="font-weight:600">${a.name}</div>
-          <div style="font-size:12px;color:#888">${fmt(a.followers?.total)} followers${a.genres?.[0]?' · '+a.genres[0]:''}</div>
+          <div style="font-size:12px;color:#888">${a.followers?.total?fmt(a.followers.total)+' followers':''}${a.genres?.[0]?' · '+a.genres[0]:''}</div>
         </div>
       </div>`).join('');
   }catch(e){ document.getElementById('sp-status').textContent='Error — check Spotify credentials in Settings'; }
@@ -159,22 +160,23 @@ async function doSpotifySearch(){
 async function pickSpotify(i){
   const artist=spResults[i];
   if(!pendingBench) pendingBench={};
-
   document.getElementById('sp-results').innerHTML='';
-  document.getElementById('sp-status').textContent='Loading artist data…';
+  document.getElementById('sp-status').textContent='Loading full artist data…';
 
   try{
     const tok=await getSpToken();
 
-    // Top tracks
-    const tracksResp=await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,{headers:{Authorization:'Bearer '+tok}});
-    const tracksData=await tracksResp.json();
-    const topTrack=tracksData.tracks?.[0]||null;
+    // Fetch all in parallel
+    const [tracksResp, albumsResp] = await Promise.all([
+      fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,{headers:{Authorization:'Bearer '+tok}}),
+      fetch(`https://api.spotify.com/v1/artists/${artist.id}/albums?include_groups=album,single&market=US&limit=50`,{headers:{Authorization:'Bearer '+tok}})
+    ]);
 
-    // All albums to find most recent + earliest release
-    const albumsResp=await fetch(`https://api.spotify.com/v1/artists/${artist.id}/albums?include_groups=album,single&market=US&limit=50`,{headers:{Authorization:'Bearer '+tok}});
-    const albumsData=await albumsResp.json();
-    const albums=albumsData.items||[];
+    const tracksData = await tracksResp.json();
+    const albumsData = await albumsResp.json();
+
+    const topTrack = tracksData.tracks?.[0]||null;
+    const albums = albumsData.items||[];
 
     let mostRecent=null, earliest=null;
     albums.forEach(al=>{
@@ -182,46 +184,34 @@ async function pickSpotify(i){
       if(!earliest||al.release_date<earliest.release_date) earliest=al;
     });
 
-    // Most recent release track count / streams (get full album for track details)
-    let recentStreams=null;
-    if(mostRecent){
-      const fullAlbum=await fetch(`https://api.spotify.com/v1/albums/${mostRecent.id}`,{headers:{Authorization:'Bearer '+tok}});
-      const fd=await fullAlbum.json();
-      // Spotify doesn't expose stream counts on album tracks, but we can note track count
-      mostRecent._trackCount=fd.tracks?.total||null;
-    }
-
-    // Fill pending bench
     pendingBench.name=artist.name;
     pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
     pendingBench._img=artist.images?.[0]?.url||'';
     pendingBench._spFollowers=artist.followers?.total||'';
-    pendingBench._spId=artist.id;
     pendingBench.topSong=topTrack?.name||'';
-    pendingBench._topTrackStreams=topTrack?.popularity||''; // popularity 0-100 as proxy
+    pendingBench._topTrackPopularity=topTrack?.popularity||'';
     pendingBench._mostRecentRelease=mostRecent?.name||'';
     pendingBench._mostRecentReleaseDate=mostRecent?.release_date||'';
     pendingBench._mostRecentReleaseType=mostRecent?.album_type||'';
-    pendingBench._mostRecentTrackCount=mostRecent?._trackCount||'';
     pendingBench._firstReleaseDate=earliest?.release_date||'';
     pendingBench._firstReleaseName=earliest?.name||'';
 
     document.getElementById('sp-status').textContent='';
     document.getElementById('sp-search-input').value='';
 
-    // Update fields inline
+    // Update fields inline without re-render
     const set=(id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
     set('f-name', pendingBench.name);
     set('f-genre', pendingBench.genre);
     set('f-ts', pendingBench.topSong);
 
-    // Show prefill summary
+    // Show green summary
     document.getElementById('sp-prefill').innerHTML=`
       <div class="sp-prefill">
         ${pendingBench._img?`<img src="${pendingBench._img}"/>`:''}
         <div style="flex:1">
-          <div style="font-weight:600;font-size:14px">${pendingBench.name} <span style="font-weight:400;color:#666;font-size:12px">auto-filled from Spotify ✓</span></div>
-          <div style="font-size:12px;color:#444;margin-top:3px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-weight:600;font-size:14px">${pendingBench.name} <span style="font-weight:400;color:#2e7d32;font-size:12px">✓ auto-filled from Spotify</span></div>
+          <div style="font-size:12px;color:#444;margin-top:4px;display:flex;flex-direction:column;gap:3px">
             <div>👥 <strong>${fmt(pendingBench._spFollowers)}</strong> Spotify followers</div>
             ${topTrack?`<div>🎵 Top track: <strong>${topTrack.name}</strong> (popularity ${topTrack.popularity}/100)</div>`:''}
             ${mostRecent?`<div>🆕 Latest: <strong>${mostRecent.name}</strong> (${mostRecent.album_type}) — ${mostRecent.release_date}</div>`:''}
@@ -231,14 +221,21 @@ async function pickSpotify(i){
       </div>`;
 
   }catch(e){
-    document.getElementById('sp-status').textContent='Could not load full artist data — try again';
-    // Still fill basic info
+    console.error(e);
+    document.getElementById('sp-status').textContent='Could not load full data — saved basic info only';
     pendingBench.name=artist.name;
     pendingBench.genre=artist.genres?.[0]?(artist.genres[0][0].toUpperCase()+artist.genres[0].slice(1)):'';
     pendingBench._img=artist.images?.[0]?.url||'';
+    pendingBench._spFollowers=artist.followers?.total||'';
     const set=(id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
     set('f-name',pendingBench.name);
     set('f-genre',pendingBench.genre);
+    document.getElementById('sp-prefill').innerHTML=`
+      <div class="sp-prefill" style="background:#fff8e1;border-color:#ffe082">
+        ${pendingBench._img?`<img src="${pendingBench._img}"/>`:''}
+        <div><div style="font-weight:600">${pendingBench.name}</div>
+        <div style="font-size:12px;color:#888;margin-top:2px">Basic info loaded. Top tracks/releases unavailable — CORS restriction on this browser.</div></div>
+      </div>`;
   }
 }
 
