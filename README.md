@@ -1,2 +1,2 @@
-# artist-scout
+# artist scout
 A&amp;R Tracker
