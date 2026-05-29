@@ -194,7 +194,42 @@ async function pickSpotify(i){
   }
 }
 
-// ── TIKTOK ─────────────────────────────────────────────────────────────────
+async function fetchTikTokInForm(){
+  const handle=document.getElementById('f-tth')?.value?.replace('@','').trim();
+  if(!handle){ alert('Enter a TikTok @username first'); return; }
+  if(!rapidKey){ alert('Add your RapidAPI key in ⚙ Settings first'); return; }
+  const statusEl=document.getElementById('tt-form-status');
+  if(statusEl) statusEl.textContent='Fetching TikTok data…';
+  try{
+    const r=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}});
+    const d=await r.json();
+    const stats=d?.user_info?.stats||d?.userInfo?.stats||d?.stats||{};
+    const followers=stats.followerCount||d?.followerCount||null;
+    const likes=stats.heartCount||d?.heartCount||null;
+    const videos=stats.videoCount||d?.videoCount||null;
+    if(!followers){ if(statusEl) statusEl.textContent='No data — check the @username'; return; }
+    if(!pendingBench) pendingBench={};
+    pendingBench._ttFollowers=String(followers);
+    pendingBench._ttLikes=String(likes||'');
+    pendingBench._ttVideos=String(videos||'');
+    pendingBench.tiktokHandle=handle;
+    // Update fields inline
+    const ttfEl=document.getElementById('f-ttf');
+    if(ttfEl) ttfEl.value=String(followers);
+    if(statusEl) statusEl.textContent='';
+    // Show blue summary card
+    const card=document.getElementById('tt-form-card');
+    if(card) card.innerHTML=`<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:8px 12px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap">
+      <div>👥 <strong>${fmt(n(followers))}</strong> followers</div>
+      ${likes?`<div>❤️ <strong>${fmt(n(likes))}</strong> likes</div>`:''}
+      ${videos?`<div>🎵 <strong>${fmt(n(videos))}</strong> videos</div>`:''}
+    </div>`;
+  }catch(e){
+    if(statusEl) statusEl.textContent='Fetch failed — check your RapidAPI key in Settings';
+  }
+}
+
+
 async function doFetchTikTok(id){
   const a=artists.find(x=>x.id===id);
   if(!a?.tiktokHandle){ alert('Add a TikTok @username to this artist first'); return; }
@@ -283,8 +318,18 @@ function renderAdd(){
     </div>
     <div class="grid2">
       <div class="field"><label>Date discovered</label><input type="date" id="f-disc" value="${b.discovered||new Date().toISOString().slice(0,10)}"/></div>
-      <div class="field"><label>TikTok @username</label><input id="f-tth" value="${b.tiktokHandle||''}" placeholder="@handle"/></div>
+      <div class="field"><label>TikTok @username</label>
+        <div style="display:flex;gap:6px">
+          <input id="f-tth" value="${b.tiktokHandle||''}" placeholder="@handle" style="flex:1"/>
+          <button onclick="fetchTikTokInForm()" style="white-space:nowrap;font-size:13px">Fetch</button>
+        </div>
+        <div id="tt-form-status" style="font-size:12px;color:#888;margin-top:4px"></div>
+      </div>
     </div>
+    ${b._ttFollowers||b.tiktokFollowers?`<div id="tt-form-card"><div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:8px 12px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap">
+      <div>👥 <strong>${fmt(n(b._ttFollowers||b.tiktokFollowers))}</strong> followers</div>
+      ${b._ttLikes?`<div>❤️ <strong>${fmt(n(b._ttLikes))}</strong> likes</div>`:''}
+    </div></div>`:`<div id="tt-form-card"></div>`}
   </div>
   <div class="section">
     <h3>Spotify baseline</h3>
