@@ -203,10 +203,10 @@ async function fetchTikTokInForm(){
   try{
     const r=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}});
     const d=await r.json();
-    const stats=d?.user_info?.stats||d?.userInfo?.stats||d?.stats||{};
-    const followers=stats.followerCount||d?.followerCount||d?.user?.follower_count||null;
-    const likes=stats.heartCount||d?.heartCount||d?.user?.total_favorited||null;
-    const videos=stats.videoCount||d?.videoCount||d?.user?.aweme_count||null;
+    console.log('TikTok raw response:', JSON.stringify(d).slice(0,500));
+    const followers=d?.user?.follower_count||d?.user_info?.stats?.followerCount||null;
+    const likes=d?.user?.total_favorited||d?.user_info?.stats?.heartCount||null;
+    const videos=d?.user?.aweme_count||d?.user_info?.stats?.videoCount||null;
     if(!followers){ if(statusEl) statusEl.textContent='No data — check the @username'; return; }
     if(!pendingBench) pendingBench={};
     pendingBench._ttFollowers=String(followers);
