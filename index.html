@@ -204,9 +204,9 @@ async function fetchTikTokInForm(){
     const r=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}});
     const d=await r.json();
     const stats=d?.user_info?.stats||d?.userInfo?.stats||d?.stats||{};
-    const followers=stats.followerCount||d?.followerCount||null;
-    const likes=stats.heartCount||d?.heartCount||null;
-    const videos=stats.videoCount||d?.videoCount||null;
+    const followers=stats.followerCount||d?.followerCount||d?.user?.follower_count||null;
+    const likes=stats.heartCount||d?.heartCount||d?.user?.total_favorited||null;
+    const videos=stats.videoCount||d?.videoCount||d?.user?.aweme_count||null;
     if(!followers){ if(statusEl) statusEl.textContent='No data — check the @username'; return; }
     if(!pendingBench) pendingBench={};
     pendingBench._ttFollowers=String(followers);
@@ -241,8 +241,8 @@ async function doFetchTikTok(id){
     const r=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}});
     const d=await r.json();
     const stats=d?.user_info?.stats||d?.userInfo?.stats||d?.stats||{};
-    const followers=stats.followerCount||d?.followerCount||null;
-    const likes=stats.heartCount||d?.heartCount||null;
+    const followers=stats.followerCount||d?.followerCount||d?.user?.follower_count||null;
+    const likes=stats.heartCount||d?.heartCount||d?.user?.total_favorited||null;
     if(!followers){ alert('No data — check the @username'); if(btn){btn.textContent='↻ TikTok';btn.disabled=false;} return; }
     artists=artists.map(x=>x.id===id?{...x,tiktokFollowers:String(followers),tiktokLikes:String(likes||''),tiktokLastFetched:new Date().toISOString().slice(0,10)}:x);
     saveArtists(); goTo('detail');
