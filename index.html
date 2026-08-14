@@ -122,12 +122,8 @@ async function spPick(i){
     let recent=null;
     albums.forEach(al=>{ if(!recent||al.release_date>recent.release_date) recent=al; });
     if(recent){ setv('f-recs',recent.name); setv('f-recd',recent.release_date); draft.recentType=recent.album_type;
-      const lbl=document.querySelector('label[for="f-recs"]');
-      const recsField=document.getElementById('f-recs');
-      if(recsField){
-        const labelEl=recsField.parentElement.querySelector('label');
-        if(labelEl) labelEl.innerHTML=`Most recent release <span style="font-weight:400;color:#a8a294">(${esc(recent.album_type)})</span>`;
-      }
+      const tag=document.getElementById('f-rectype');
+      if(tag) tag.textContent=`(${recent.album_type})`;
     }
     st.textContent=''; document.getElementById('sp-q').value='';
     document.getElementById('sp-ok').innerHTML=`<div class="ok">
@@ -317,7 +313,12 @@ function renderForm(){
       <div class="field"><label>Released</label><input type="date" id="f-topd" value="${esc(b.topSongDate)}"></div>
     </div>
     <div class="grid3">
-      <div class="field"><label>Most recent release${b.recentType?` <span style="font-weight:400;color:#a8a294">(${esc(b.recentType)})</span>`:''}</label><input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title"></div>
+      <div class="field"><label>Most recent release</label>
+        <div style="position:relative">
+          <input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title" style="padding-right:70px">
+          <span id="f-rectype" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#a8a294;pointer-events:none">${b.recentType?`(${esc(b.recentType)})`:''}</span>
+        </div>
+      </div>
       <div class="field"><label>Listens</label><input type="number" id="f-recl" value="${esc(b.recentPlays)}" placeholder="180000"></div>
       <div class="field"><label>Released</label><input type="date" id="f-recd" value="${esc(b.recentDate)}"></div>
     </div>
