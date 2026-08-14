@@ -55,6 +55,9 @@
   .warn{background:#fdf6e3;border:1px solid #ecdcae;border-radius:10px;padding:11px 13px;margin-top:10px;font-size:13px;color:#7a5c00}
   .empty{text-align:center;padding:56px 20px;color:#a8a294;font-size:14px}
   .muted{color:#8a8578;font-size:13px}
+  table{width:100%;font-size:13px;border-collapse:collapse}
+  th{text-align:left;padding:7px 9px;font-weight:550;color:#8a8578;border-bottom:1px solid #eae6de}
+  td{padding:7px 9px;border-bottom:1px solid #f4f2ed}
   @media(max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
 </style>
 </head>
@@ -79,37 +82,13 @@ function load(){
 function save(){ localStorage.setItem(KEY,JSON.stringify(artists)) }
 function saveCreds(){ localStorage.setItem(CKEY,JSON.stringify({rk:rapidKey})) }
 
-function snapshotForm(){
-  if(view!=='form'||editing) return;
-  const g=id=>document.getElementById(id)?.value||'';
-  const genres=[...document.querySelectorAll('.genre-cb')].filter(c=>c.checked).map(c=>c.value);
-  const pot=[...document.querySelectorAll('.pot-cb')].filter(c=>c.checked).map(c=>c.value);
-  const sounds=[0,1,2].map(i=>({name:g(`f-s${i}n`),uses:g(`f-s${i}u`)}));
-  const snap={
-    img:draft?.img||'', recentType:draft?.recentType||'',
-    name:g('f-name'), location:g('f-loc'), genres, poc:g('f-poc'),
-    monthlyListeners:g('f-ml'),
-    topSong:g('f-tops'), topSongPlays:g('f-topl'), topSongDate:g('f-topd'),
-    recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
-    igFollowers:g('f-igf'), igEngagement:g('f-ige'),
-    sounds, urgency:g('f-urg'), potential:pot, notes:g('f-notes')
-  };
-  const hasContent = snap.name || snap.location || snap.monthlyListeners || snap.topSong || snap.igFollowers || snap.notes || sounds.some(s=>s.name||s.uses);
-  if(hasContent) localStorage.setItem(DRAFTKEY, JSON.stringify(snap));
-}
-
-function restoreDraft(){
-  draft={...unsavedDraft, sounds: unsavedDraft.sounds||[{},{},{}]};
-  editing=false; spRes=[];
-  go('form');
-}
-function discardDraft(){
-  localStorage.removeItem(DRAFTKEY);
-  unsavedDraft=null;
-  render();
-}
-
 const n=v=>{ if(v===''||v==null) return null; const c=String(v).replace(/,/g,''); const num=Number(c); return isNaN(num)?null:num; };
+const fmt=v=>{if(v==null||v==='')return '—';v=Number(v);if(isNaN(v))return '—';return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v)};
+const pctv=v=>v==null?'—':Number(v).toFixed(2)+'%';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dt=d=>{ if(!d) return ''; const p=String(d).split('-'); return p.length>=3?`${p[1]}/${p[2]}/${p[0]}`:d; };
+const urgBadge=u=>{const m=URG[u]||URG[1];return `<span class="urg ${m.cls}">${u} · ${m.label}</span>`};
+
 function commaNum(el){
   let digits=el.value.replace(/[^\d]/g,'');
   el.value = digits ? Number(digits).toLocaleString('en-US') : '';
@@ -130,11 +109,6 @@ function smartNum(el){
     el.value=digits?Number(digits).toLocaleString('en-US'):'';
   }
 }
-const fmt=v=>{if(v==null||v==='')return '—';v=Number(v);if(isNaN(v))return '—';return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v)};
-const pctv=v=>v==null?'—':Number(v).toFixed(2)+'%';
-const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const dt=d=>{ if(!d) return ''; const p=String(d).split('-'); return p.length>=3?`${p[1]}/${p[2]}/${p[0]}`:d; };
-const urgBadge=u=>{const m=URG[u]||URG[1];return `<span class="urg ${m.cls}">${u} · ${m.label}</span>`};
 
 function go(v){view=v;render();window.scrollTo(0,0)}
 function open_(id){selId=id;go('detail')}
@@ -143,52 +117,34 @@ function editArtist(id){const a=artists.find(x=>x.id===id);draft=JSON.parse(JSON
 function del(id){if(confirm('Delete this artist?')){artists=artists.filter(a=>a.id!==id);save();go('roster')}}
 function goSnap(id){selId=id;go('snap')}
 
-/* ---------- Snapshots ---------- */
-function renderSnap(){
-  const a=artists.find(x=>x.id===selId); if(!a) return '';
-  return `
-  <button class="back" type="button" onclick="go('detail')">← back</button>
-  <h2>Log snapshot</h2>
-  <p class="muted" style="margin:4px 0 22px">${esc(a.name)} — check in on their numbers today.</p>
-  <div style="max-width:500px">
-    <div class="field" style="max-width:200px;margin-bottom:16px"><label>Date</label><input type="date" id="sn-date" value="${new Date().toISOString().slice(0,10)}"></div>
-    <div class="section">
-      <h3>Spotify</h3>
-      <div class="field"><label>Monthly listeners</label><input onblur="smartNum(this)" id="sn-ml" placeholder="e.g. 250K"></div>
-    </div>
-    <div class="section">
-      <h3>Instagram</h3>
-      <div class="grid2">
-        <div class="field"><label>Followers</label><input onblur="smartNum(this)" id="sn-igf" placeholder="e.g. 33.2M"></div>
-        <div class="field"><label>Engagement rate %</label><input type="number" step="0.01" id="sn-ige" placeholder="e.g. 4.2"></div>
-      </div>
-    </div>
-    <div class="field" style="margin-bottom:16px"><label>Notable events <span style="color:#a8a294">(collabs, tours, features, etc.)</span></label>
-      <input id="sn-events" spellcheck="true" autocorrect="on" placeholder="e.g. Tour w/ [artist], feature on [song], signed to [label]"></div>
-    <div class="field" style="margin-bottom:20px"><label>Notes <span style="color:#a8a294">(optional)</span></label>
-      <textarea id="sn-notes" rows="2" spellcheck="true" autocorrect="on" placeholder="Anything else worth remembering about this check-in"></textarea></div>
-    <div class="btnrow">
-      <button class="primary" type="button" onclick="submitSnap()">Save snapshot</button>
-      <button type="button" onclick="go('detail')">Cancel</button>
-    </div>
-  </div>`;
-}
-
-function submitSnap(){
-  const g=id=>document.getElementById(id)?.value?.trim()||'';
+/* ---------- draft autosave ---------- */
+function snapshotFormDraft(){
+  if(view!=='form'||editing) return;
+  const g=id=>document.getElementById(id)?.value||'';
+  const genres=[...document.querySelectorAll('.genre-cb')].filter(c=>c.checked).map(c=>c.value);
+  const pot=[...document.querySelectorAll('.pot-cb')].filter(c=>c.checked).map(c=>c.value);
+  const sounds=[0,1,2].map(i=>({name:g(`f-s${i}n`),uses:g(`f-s${i}u`)}));
   const snap={
-    date: g('sn-date')||new Date().toISOString().slice(0,10),
-    monthlyListeners: g('sn-ml'), igFollowers: g('sn-igf'), igEngagement: g('sn-ige'),
-    events: g('sn-events'), notes: g('sn-notes')
+    img:draft?.img||'', recentType:draft?.recentType||'',
+    name:g('f-name'), location:g('f-loc'), genres, poc:g('f-poc'),
+    monthlyListeners:g('f-ml'),
+    topSong:g('f-tops'), topSongPlays:g('f-topl'), topSongDate:g('f-topd'),
+    recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
+    igFollowers:g('f-igf'), igEngagement:g('f-ige'),
+    sounds, urgency:g('f-urg'), potential:pot, notes:g('f-notes')
   };
-  artists=artists.map(a=>a.id===selId?{...a,snapshots:[...(a.snapshots||[]),snap]}:a);
-  save(); go('detail');
+  const hasContent = snap.name || snap.location || snap.monthlyListeners || snap.topSong || snap.igFollowers || snap.notes || sounds.some(s=>s.name||s.uses);
+  if(hasContent) localStorage.setItem(DRAFTKEY, JSON.stringify(snap));
 }
-
-function delSnap(idx){
-  if(!confirm('Delete this snapshot?')) return;
-  artists=artists.map(a=>a.id===selId?{...a,snapshots:(a.snapshots||[]).filter((_,i)=>i!==idx)}:a);
-  save(); go('detail');
+function restoreDraft(){
+  draft={...unsavedDraft, sounds: unsavedDraft.sounds||[{},{},{}]};
+  editing=false; spRes=[];
+  go('form');
+}
+function discardDraft(){
+  localStorage.removeItem(DRAFTKEY);
+  unsavedDraft=null;
+  render();
 }
 
 /* ---------- Spotify autofill ---------- */
@@ -222,7 +178,8 @@ async function spPick(i){
     const albums=d.albums?.items||[];
     let recent=null;
     albums.forEach(al=>{ if(!recent||al.release_date>recent.release_date) recent=al; });
-    if(recent){ setv('f-recs',recent.name); setv('f-recd',recent.release_date); draft.recentType=recent.album_type;
+    if(recent){
+      setv('f-recs',recent.name); setv('f-recd',recent.release_date); draft.recentType=recent.album_type;
       const tag=document.getElementById('f-rectype');
       if(tag) tag.textContent=`(${recent.album_type})`;
     }
@@ -356,10 +313,58 @@ function useSoundSlot(matchIdx, slotIdx){
   if(usesEl) usesEl.value=m.user_count?Number(m.user_count).toLocaleString('en-US'):'';
 }
 
+/* ---------- Snapshots ---------- */
+function renderSnap(){
+  const a=artists.find(x=>x.id===selId); if(!a) return '';
+  return `
+  <button class="back" type="button" onclick="go('detail')">← back</button>
+  <h2>Log snapshot</h2>
+  <p class="muted" style="margin:4px 0 22px">${esc(a.name)} — check in on their numbers today.</p>
+  <div style="max-width:500px">
+    <div class="field" style="max-width:200px;margin-bottom:16px"><label>Date</label><input type="date" id="sn-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="section">
+      <h3>Spotify</h3>
+      <div class="field"><label>Monthly listeners</label><input onblur="smartNum(this)" id="sn-ml" placeholder="e.g. 250K"></div>
+    </div>
+    <div class="section">
+      <h3>Instagram</h3>
+      <div class="grid2">
+        <div class="field"><label>Followers</label><input onblur="smartNum(this)" id="sn-igf" placeholder="e.g. 33.2M"></div>
+        <div class="field"><label>Engagement rate %</label><input type="number" step="0.01" id="sn-ige" placeholder="e.g. 4.2"></div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:16px"><label>Notable events <span style="color:#a8a294">(collabs, tours, features, etc.)</span></label>
+      <input id="sn-events" spellcheck="true" autocorrect="on" placeholder="e.g. Tour w/ [artist], feature on [song], signed to [label]"></div>
+    <div class="field" style="margin-bottom:20px"><label>Notes <span style="color:#a8a294">(optional)</span></label>
+      <textarea id="sn-notes" rows="2" spellcheck="true" autocorrect="on" placeholder="Anything else worth remembering about this check-in"></textarea></div>
+    <div class="btnrow">
+      <button class="primary" type="button" onclick="submitSnap()">Save snapshot</button>
+      <button type="button" onclick="go('detail')">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function submitSnap(){
+  const g=id=>document.getElementById(id)?.value?.trim()||'';
+  const snap={
+    date: g('sn-date')||new Date().toISOString().slice(0,10),
+    monthlyListeners: g('sn-ml'), igFollowers: g('sn-igf'), igEngagement: g('sn-ige'),
+    events: g('sn-events'), notes: g('sn-notes')
+  };
+  artists=artists.map(a=>a.id===selId?{...a,snapshots:[...(a.snapshots||[]),snap]}:a);
+  save(); go('detail');
+}
+
+function delSnap(idx){
+  if(!confirm('Delete this snapshot?')) return;
+  artists=artists.map(a=>a.id===selId?{...a,snapshots:(a.snapshots||[]).filter((_,i)=>i!==idx)}:a);
+  save(); go('detail');
+}
+
 /* ---------------------------- SETTINGS ---------------------------- */
 function renderSettings(){
   return `
-  <button class="back" onclick="go('roster')">← back</button>
+  <button class="back" type="button" onclick="go('roster')">← back</button>
   <h2>Settings</h2>
   <p class="muted" style="margin:4px 0 22px">Stored in this browser only.</p>
   <div style="max-width:460px">
@@ -375,7 +380,7 @@ function renderSettings(){
 function renderForm(){
   const b=draft||{}, s=b.sounds||[{},{},{}], pot=b.potential||[];
   return `
-  <button class="back" onclick="go('roster')">← back</button>
+  <button class="back" type="button" onclick="go('roster')">← back</button>
   <h2>${editing?'Edit artist':'New artist'}</h2>
   <p class="muted" style="margin:4px 0 22px">Everything except name is optional — fill what you know.</p>
 
@@ -409,7 +414,7 @@ function renderForm(){
   <div class="section">
     <h3>Spotify</h3>
     <div class="field" style="max-width:300px;margin-bottom:14px">
-      <label>Monthly listeners</label><input inputmode="text" onblur="smartNum(this)" id="f-ml" value="${esc(b.monthlyListeners)}" placeholder="e.g. 250,000 or 250K">
+      <label>Monthly listeners</label><input onblur="smartNum(this)" id="f-ml" value="${esc(b.monthlyListeners)}" placeholder="e.g. 250K">
     </div>
     <div class="grid3" style="margin-bottom:12px">
       <div class="field"><label>Top song</label><input id="f-tops" value="${esc(b.topSong)}" placeholder="Song title"></div>
@@ -510,7 +515,8 @@ function submitForm(){
     recentType: draft?.recentType||'',
     igFollowers:g('f-igf'), igEngagement:g('f-ige'),
     sounds,
-    urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes')
+    urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes'),
+    snapshots: editing?(draft.snapshots||[]):[]
   };
   if(editing){ artists=artists.map(a=>a.id===rec.id?rec:a) } else { artists.push(rec) }
   save();
@@ -523,8 +529,14 @@ function renderDetail(){
   const a=artists.find(x=>x.id===selId); if(!a) return '';
   const sounds=(a.sounds||[]).filter(s=>s.name||s.uses);
   const total=sounds.reduce((t,s)=>t+(n(s.uses)||0),0);
+  const snaps=a.snapshots||[];
+  const latest=snaps.length?snaps[snaps.length-1]:null;
+  const gpct=(base,cur)=>{ if(base==null||cur==null||base===0) return null; return ((cur-base)/base)*100; };
+  const growthHtml=v=>v==null?'':`<div class="ms" style="color:${v>=0?'#2e7d4f':'#b3261e'}">${v>=0?'↑':'↓'} ${Math.abs(v).toFixed(1)}% since added</div>`;
+  const mlGrowth = latest ? gpct(n(a.monthlyListeners), n(latest.monthlyListeners)) : null;
+  const igGrowth = latest ? gpct(n(a.igFollowers), n(latest.igFollowers)) : null;
   return `
-  <button class="back" onclick="go('roster')">← roster</button>
+  <button class="back" type="button" onclick="go('roster')">← roster</button>
   <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px">
     <div style="display:flex;gap:13px;align-items:center">
       ${a.img?`<img src="${a.img}" style="width:58px;height:58px;border-radius:12px;object-fit:cover">`:''}
@@ -538,6 +550,7 @@ function renderDetail(){
       </div>
     </div>
     <div class="btnrow" style="height:fit-content">
+      <button class="primary" type="button" onclick="goSnap(${a.id})">+ Log snapshot</button>
       <button type="button" onclick="editArtist(${a.id})">Edit</button>
       <button class="danger" type="button" onclick="del(${a.id})">Delete</button>
     </div>
@@ -550,9 +563,9 @@ function renderDetail(){
     <div style="font-weight:600">${esc(a.poc)}</div></div>`:''}
 
   <div class="section">
-    <h3>Spotify</h3>
+    <h3>Spotify — as added ${a.added?'('+dt(a.added)+')':''}</h3>
     <div class="metric-grid">
-      <div class="metric"><div class="ml">Monthly listeners</div><div class="mv">${fmt(n(a.monthlyListeners))}</div></div>
+      <div class="metric"><div class="ml">Monthly listeners</div><div class="mv">${fmt(n(a.monthlyListeners))}</div>${latest?growthHtml(mlGrowth):''}</div>
       ${a.topSong?`<div class="metric"><div class="ml">Top song</div><div class="mv" style="font-size:14px">${esc(a.topSong)}</div>
         <div class="ms">${fmt(n(a.topSongPlays))} plays${a.topSongDate?' · '+dt(a.topSongDate):''}</div></div>`:''}
       ${a.recentRelease?`<div class="metric"><div class="ml">Most recent</div><div class="mv" style="font-size:14px">${esc(a.recentRelease)}${a.recentType?` <span style="font-weight:400;color:#8a8578;font-size:12px">(${esc(a.recentType)})</span>`:''}</div>
@@ -561,9 +574,9 @@ function renderDetail(){
   </div>
 
   <div class="section">
-    <h3>Instagram</h3>
+    <h3>Instagram — as added</h3>
     <div class="metric-grid">
-      <div class="metric"><div class="ml">Followers</div><div class="mv">${fmt(n(a.igFollowers))}</div></div>
+      <div class="metric"><div class="ml">Followers</div><div class="mv">${fmt(n(a.igFollowers))}</div>${latest?growthHtml(igGrowth):''}</div>
       <div class="metric"><div class="ml">Engagement rate</div><div class="mv">${pctv(n(a.igEngagement))}</div></div>
     </div>
   </div>
@@ -574,6 +587,30 @@ function renderDetail(){
       <div style="flex:1;font-weight:550">${esc(s.name)||'<span class="muted">Untitled</span>'}</div>
       <div class="muted">${fmt(n(s.uses))} videos</div></div>`).join(''):
       `<div class="muted">No sounds logged.</div>`}
+  </div>
+
+  <div class="section">
+    <h3>Snapshot history</h3>
+    ${!snaps.length?`<div style="text-align:center;padding:2rem;color:#a8a294;border:1px dashed #e2ded6;border-radius:12px;font-size:14px">No check-ins yet — hit "+ Log snapshot" whenever you want to see if they've grown.</div>`:`
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Listeners</th><th>IG followers</th><th>IG eng%</th><th>Notable events</th><th>Notes</th><th></th>
+        </tr></thead>
+        <tbody>${[...snaps].reverse().map((s,ri)=>{
+          const idx=snaps.length-1-ri;
+          return `<tr>
+            <td style="white-space:nowrap">${dt(s.date)}</td>
+            <td>${fmt(n(s.monthlyListeners))}</td>
+            <td>${fmt(n(s.igFollowers))}</td>
+            <td>${pctv(n(s.igEngagement))}</td>
+            <td style="max-width:180px">${s.events?`<span class="pot" style="background:#fdf1dc;color:#8a5a00">${esc(s.events)}</span>`:''}</td>
+            <td style="color:#8a8578;max-width:180px">${esc(s.notes)||''}</td>
+            <td><button type="button" onclick="delSnap(${idx})" style="font-size:11px;padding:3px 8px;color:#b3261e;border-color:#f0c4c1">✕</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`}
   </div>
 
   ${a.notes?`<div class="section"><h3>Notes</h3>
@@ -663,8 +700,8 @@ function render(){
 }
 
 load(); render();
-document.getElementById('app').addEventListener('input', snapshotForm);
-document.getElementById('app').addEventListener('change', snapshotForm);
+document.getElementById('app').addEventListener('input', snapshotFormDraft);
+document.getElementById('app').addEventListener('change', snapshotFormDraft);
 </script>
 </body>
 </html>
