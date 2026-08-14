@@ -375,7 +375,7 @@ async function fetchSnapSoundCounts(){
       if(best && el) el.value=Number(best.user_count||0).toLocaleString('en-US');
     }catch(e){}
   }
-  if(st) st.textContent='Done — double check these before saving, matches aren\\'t always exact.';
+  if(st) st.textContent='Done — double check these before saving, matches are not always exact.';
 }
 
 function submitSnap(){
