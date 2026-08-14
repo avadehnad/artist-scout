@@ -20,6 +20,7 @@
   button.primary:hover{background:#383838}
   button.danger{color:#b3261e;border-color:#f0c4c1}
   button.danger:hover{background:#fdf3f2}
+  button:disabled{opacity:.45;cursor:not-allowed}
   .back{background:none;border:none;color:#8a8578;font-size:14px;padding:0;margin-bottom:18px;cursor:pointer;display:block}
   .back:hover{background:none;color:#1a1a1a}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -30,7 +31,6 @@
   .card{background:#fff;border:1px solid #eae6de;border-radius:14px;padding:18px;margin-bottom:24px}
   .hrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px}
   .btnrow{display:flex;gap:8px;flex-wrap:wrap}
-  /* urgency */
   .urg{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
   .urg3{background:#fdeceb;color:#b3261e}
   .urg2{background:#fdf1dc;color:#8a5a00}
@@ -52,6 +52,7 @@
   .sp-res img{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0}
   .ok{background:#e9f6ee;border:1px solid #c3e6d1;border-radius:10px;padding:11px 13px;margin-top:10px;font-size:13px;display:flex;gap:11px;align-items:center}
   .ok img{width:42px;height:42px;border-radius:8px;object-fit:cover;flex-shrink:0}
+  .warn{background:#fdf6e3;border:1px solid #ecdcae;border-radius:10px;padding:11px 13px;margin-top:10px;font-size:13px;color:#7a5c00}
   .empty{text-align:center;padding:56px 20px;color:#a8a294;font-size:14px}
   .muted{color:#8a8578;font-size:13px}
   @media(max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
@@ -60,24 +61,27 @@
 <body>
 <div class="app" id="app"></div>
 <script>
-const KEY='scout-v3';
+const KEY='scout-v3', CKEY='scout-v3-creds';
 const GENRES=['Afrobeats','Alternative','Country','Dance/Electronic','Drill','Hip-Hop','House','Indie','Jersey Club','Latin','Pop','Punk','R&B','Rock','Soul','Other'];
 const POTENTIALS=['Visual','Social','Artist Project','Publishing'];
 const URG={3:{label:'Move now',cls:'urg3'},2:{label:'Watch closely',cls:'urg2'},1:{label:'Keep an eye',cls:'urg1'}};
 
-let artists=[], view='roster', selId=null, draft=null, editing=false;
+let artists=[], rapidKey='', view='roster', selId=null, draft=null, editing=false;
 let filterUrg='all', filterPot='all', search='';
 let spRes=[];
 
-function load(){ try{artists=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{} }
+function load(){
+  try{artists=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}
+  try{rapidKey=(JSON.parse(localStorage.getItem(CKEY)||'{}')).rk||''}catch{}
+}
 function save(){ localStorage.setItem(KEY,JSON.stringify(artists)) }
+function saveCreds(){ localStorage.setItem(CKEY,JSON.stringify({rk:rapidKey})) }
 
 const n=v=>(v===''||v==null)?null:Number(v);
 const fmt=v=>{if(v==null||v==='')return '—';v=Number(v);if(isNaN(v))return '—';return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v)};
 const pctv=v=>v==null?'—':Number(v).toFixed(2)+'%';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dt=d=>{ if(!d) return ''; const p=String(d).split('-'); return p.length>=3?`${p[1]}/${p[2]}/${p[0]}`:d; };
-
 const urgBadge=u=>{const m=URG[u]||URG[1];return `<span class="urg ${m.cls}">${u} · ${m.label}</span>`};
 
 function go(v){view=v;render();window.scrollTo(0,0)}
@@ -86,7 +90,7 @@ function newArtist(){draft={sounds:[{},{},{}],potential:[],urgency:2};editing=fa
 function editArtist(id){const a=artists.find(x=>x.id===id);draft=JSON.parse(JSON.stringify(a));if(!draft.sounds)draft.sounds=[{},{},{}];while(draft.sounds.length<3)draft.sounds.push({});editing=true;spRes=[];go('form')}
 function del(id){if(confirm('Delete this artist?')){artists=artists.filter(a=>a.id!==id);save();go('roster')}}
 
-/* ---------- Spotify autofill (uses existing /api/spotify proxy) ---------- */
+/* ---------- Spotify autofill (existing /api/spotify proxy) ---------- */
 async function spSearch(){
   const q=document.getElementById('sp-q')?.value?.trim(); if(!q)return;
   const st=document.getElementById('sp-st'), rs=document.getElementById('sp-rs');
@@ -118,8 +122,7 @@ async function spPick(i){
     let recent=null;
     albums.forEach(al=>{ if(!recent||al.release_date>recent.release_date) recent=al; });
     if(recent){ setv('f-recs',recent.name); setv('f-recd',recent.release_date); draft.recentType=recent.album_type; }
-    st.textContent='';
-    document.getElementById('sp-q').value='';
+    st.textContent=''; document.getElementById('sp-q').value='';
     document.getElementById('sp-ok').innerHTML=`<div class="ok">
       ${draft.img?`<img src="${draft.img}">`:''}
       <div><div style="font-weight:600">${esc(a.name)} <span style="color:#2e7d4f;font-weight:400;font-size:12px">✓ linked</span></div>
@@ -128,11 +131,87 @@ async function spPick(i){
   }catch(e){ st.textContent='Could not load releases — '+e.message; }
 }
 
+/* ---------- TikTok: profile link → top 3 sounds ---------- */
+function parseHandle(input){
+  if(!input) return '';
+  const s=String(input).trim();
+  const m=s.match(/tiktok\.com\/@([A-Za-z0-9._-]+)/i);
+  if(m) return m[1];
+  return s.replace(/^@/,'').replace(/\/+$/,'').split('?')[0];
+}
+
+async function fetchSounds(){
+  const raw=document.getElementById('f-tt')?.value;
+  const handle=parseHandle(raw);
+  const st=document.getElementById('tt-st');
+  const btn=document.getElementById('tt-btn');
+  if(!handle){ st.innerHTML='<span style="color:#b3261e">Paste their TikTok profile link or @handle first.</span>'; return }
+  if(!rapidKey){ st.innerHTML='<span style="color:#b3261e">Add your RapidAPI key in Settings first.</span>'; return }
+  btn.disabled=true; st.textContent='Looking up @'+handle+'…';
+  const H={'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'};
+  try{
+    const ur=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:H});
+    const ud=await ur.json();
+    console.log('SCOUT get-user:',JSON.stringify(ud).slice(0,400));
+    const u=ud?.user;
+    if(!u||!u.uid){ st.innerHTML='<span style="color:#b3261e">Account not found — check the link.</span>'; btn.disabled=false; return }
+
+    st.textContent='Reading recent posts…';
+    const pr=await fetch(`https://scraptik.p.rapidapi.com/user-posts?user_id=${encodeURIComponent(u.uid)}&sec_user_id=${encodeURIComponent(u.sec_uid||'')}&count=30`,{headers:H});
+    const pd=await pr.json();
+    console.log('SCOUT user-posts:',JSON.stringify(pd).slice(0,800));
+    const vids=pd?.aweme_list||pd?.data?.aweme_list||pd?.itemList||[];
+
+    const byId={};
+    vids.forEach(v=>{
+      const m=v.music||v.musicInfo||v.music_info||{};
+      const id=m.id_str||m.id||m.mid;
+      if(!id) return;
+      const uses=Number(m.user_count||m.userCount||m.user_count_str||0)||0;
+      const title=m.title||m.musicName||m.album||'';
+      if(!byId[id]||uses>byId[id].uses) byId[id]={id,name:title,uses};
+    });
+    const top=Object.values(byId).sort((a,b)=>b.uses-a.uses).slice(0,3);
+
+    const setv=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v==null?'':String(v))};
+    top.forEach((s,i)=>{ setv('f-s'+i+'n',s.name); setv('f-s'+i+'u',s.uses||'') });
+
+    st.textContent='';
+    const box=document.getElementById('tt-ok');
+    if(!top.length){
+      box.innerHTML=`<div class="warn">Found the account (${fmt(u.follower_count)} followers) but no sounds came back from their recent posts. Enter the sounds by hand below.</div>`;
+    } else {
+      box.innerHTML=`<div class="ok"><div>
+        <div style="font-weight:600">@${esc(handle)} · ${fmt(u.follower_count)} followers</div>
+        <div class="muted" style="margin-top:4px">Top sounds across their last ${vids.length} posts:</div>
+        ${top.map(s=>`<div class="muted">• <strong>${esc(s.name)||'Untitled'}</strong> — ${fmt(s.uses)} videos</div>`).join('')}
+        <div class="muted" style="margin-top:5px">Only covers sounds they've posted with — edits and fan-made sounds won't appear.</div>
+      </div></div>`;
+    }
+  }catch(e){
+    st.innerHTML='<span style="color:#b3261e">Fetch failed — '+esc(e.message)+'</span>';
+  }
+  btn.disabled=false;
+}
+
+/* ---------------------------- SETTINGS ---------------------------- */
+function renderSettings(){
+  return `
+  <button class="back" onclick="go('roster')">← back</button>
+  <h2>Settings</h2>
+  <p class="muted" style="margin:4px 0 22px">Stored in this browser only.</p>
+  <div style="max-width:460px">
+    <div class="field" style="margin-bottom:14px">
+      <label>RapidAPI key (ScrapTik — for TikTok sounds)</label>
+      <input type="password" id="s-rk" value="${esc(rapidKey)}" placeholder="Paste key">
+    </div>
+    <button class="primary" onclick="rapidKey=document.getElementById('s-rk').value.trim();saveCreds();go('roster')">Save</button>
+  </div>`;
+}
+
 /* ---------------------------- FORM ---------------------------- */
 function renderForm(){
-  const b=draft||{};
-  const s=b.sounds||[{},{},{}];
-  const pot=b.potential||[];
+  const b=draft||{}, s=b.sounds||[{},{},{}], pot=b.potential||[];
   return `
   <button class="back" onclick="go('roster')">← back</button>
   <h2>${editing?'Edit artist':'New artist'}</h2>
@@ -169,12 +248,12 @@ function renderForm(){
     </div>
     <div class="grid3" style="margin-bottom:12px">
       <div class="field"><label>Top song</label><input id="f-tops" value="${esc(b.topSong)}" placeholder="Song title"></div>
-      <div class="field"><label>Listens</label><input type="number" id="f-topl" value="${esc(b.topSongPlays)}" placeholder="e.g. 4200000"></div>
+      <div class="field"><label>Listens</label><input type="number" id="f-topl" value="${esc(b.topSongPlays)}" placeholder="4200000"></div>
       <div class="field"><label>Released</label><input type="date" id="f-topd" value="${esc(b.topSongDate)}"></div>
     </div>
     <div class="grid3">
       <div class="field"><label>Most recent release</label><input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title"></div>
-      <div class="field"><label>Listens</label><input type="number" id="f-recl" value="${esc(b.recentPlays)}" placeholder="e.g. 180000"></div>
+      <div class="field"><label>Listens</label><input type="number" id="f-recl" value="${esc(b.recentPlays)}" placeholder="180000"></div>
       <div class="field"><label>Released</label><input type="date" id="f-recd" value="${esc(b.recentDate)}"></div>
     </div>
   </div>
@@ -189,9 +268,17 @@ function renderForm(){
 
   <div class="section">
     <h3>TikTok sounds — top 3</h3>
-    <p class="muted" style="margin:-6px 0 12px">Which of their songs are live as TikTok audios, and how many videos use each.</p>
+    <div class="field" style="margin-bottom:6px">
+      <label>TikTok profile link or @handle</label>
+      <div style="display:flex;gap:8px">
+        <input id="f-tt" value="${esc(b.tiktok)}" placeholder="https://tiktok.com/@artist  or  @artist" style="flex:1">
+        <button id="tt-btn" onclick="fetchSounds()" style="white-space:nowrap">Find sounds</button>
+      </div>
+    </div>
+    <div id="tt-st" class="muted" style="min-height:16px"></div>
+    <div id="tt-ok" style="margin-bottom:14px"></div>
     ${[0,1,2].map(i=>`<div class="grid2" style="margin-bottom:10px">
-      <div class="field"><label>${i===0?'Sound 1':i===1?'Sound 2':'Sound 3'}</label>
+      <div class="field"><label>Sound ${i+1}</label>
         <input id="f-s${i}n" value="${esc(s[i]?.name)}" placeholder="Song / audio name"></div>
       <div class="field"><label>Videos using it</label>
         <input type="number" id="f-s${i}u" value="${esc(s[i]?.uses)}" placeholder="e.g. 12400"></div>
@@ -204,7 +291,7 @@ function renderForm(){
       <label>Urgency</label>
       <select id="f-urg">
         <option value="3"${b.urgency==3?' selected':''}>3 — Move now</option>
-        <option value="2"${b.urgency==2||b.urgency==null?' selected':''}>2 — Watch closely</option>
+        <option value="2"${(b.urgency==2||b.urgency==null)?' selected':''}>2 — Watch closely</option>
         <option value="1"${b.urgency==1?' selected':''}>1 — Keep an eye</option>
       </select>
     </div>
@@ -242,7 +329,8 @@ function submitForm(){
     recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
     recentType: draft?.recentType||'',
     igFollowers:g('f-igf'), igEngagement:g('f-ige'),
-    sounds, urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes')
+    tiktok:g('f-tt'), sounds,
+    urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes')
   };
   if(editing){ artists=artists.map(a=>a.id===rec.id?rec:a) } else { artists.push(rec) }
   save(); draft=null; selId=rec.id; go('detail');
@@ -252,7 +340,8 @@ function submitForm(){
 function renderDetail(){
   const a=artists.find(x=>x.id===selId); if(!a) return '';
   const sounds=(a.sounds||[]).filter(s=>s.name||s.uses);
-  const totalUses=sounds.reduce((t,s)=>t+(n(s.uses)||0),0);
+  const total=sounds.reduce((t,s)=>t+(n(s.uses)||0),0);
+  const handle=parseHandle(a.tiktok);
   return `
   <button class="back" onclick="go('roster')">← roster</button>
   <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px">
@@ -276,7 +365,7 @@ function renderDetail(){
   ${(a.potential||[]).length?`<div style="margin-bottom:20px">${a.potential.map(p=>`<span class="pot">${esc(p)}</span>`).join('')}</div>`:''}
 
   ${a.poc?`<div class="card" style="padding:13px 16px;margin-bottom:20px">
-    <div class="ml" style="font-size:11px;color:#8a8578;margin-bottom:3px">POINT OF CONTACT</div>
+    <div style="font-size:11px;color:#8a8578;margin-bottom:3px">POINT OF CONTACT</div>
     <div style="font-weight:600">${esc(a.poc)}</div></div>`:''}
 
   <div class="section">
@@ -299,7 +388,8 @@ function renderDetail(){
   </div>
 
   <div class="section">
-    <h3>TikTok sounds${totalUses?` — ${fmt(totalUses)} videos total`:''}</h3>
+    <h3>TikTok sounds${total?` — ${fmt(total)} videos total`:''}</h3>
+    ${handle?`<p class="muted" style="margin:-6px 0 10px"><a href="https://tiktok.com/@${esc(handle)}" target="_blank" style="color:#2f4c9c">@${esc(handle)}</a></p>`:''}
     ${sounds.length?sounds.map(s=>`<div class="sound">
       <div style="flex:1;font-weight:550">${esc(s.name)||'<span class="muted">Untitled</span>'}</div>
       <div class="muted">${fmt(n(s.uses))} videos</div></div>`).join(''):
@@ -318,9 +408,11 @@ function renderRoster(){
   <div class="hrow">
     <div><h1>Artist scout</h1>
       <p class="muted" style="margin-top:4px">${artists.length} artist${artists.length!==1?'s':''}</p></div>
-    <button class="primary" onclick="newArtist()">+ Add artist</button>
+    <div class="btnrow">
+      <button onclick="go('settings')">⚙</button>
+      <button class="primary" onclick="newArtist()">+ Add artist</button>
+    </div>
   </div>
-
   <div style="display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap">
     <input id="q" placeholder="Search name, genre, location…" value="${esc(search)}"
       oninput="search=this.value;list()" style="flex:1;min-width:170px">
@@ -346,9 +438,7 @@ function list(){
       &&(filterUrg==='all'||String(a.urgency)===filterUrg)
       &&(filterPot==='all'||(a.potential||[]).includes(filterPot)))
     .sort((x,y)=>(y.urgency||0)-(x.urgency||0)||y.id-x.id);
-  if(!rows.length){
-    el.innerHTML=`<div class="empty">${artists.length?'No matches.':'No artists yet — add your first one.'}</div>`;return;
-  }
+  if(!rows.length){ el.innerHTML=`<div class="empty">${artists.length?'No matches.':'No artists yet — add your first one.'}</div>`; return }
   el.innerHTML=rows.map(a=>{
     const uses=(a.sounds||[]).reduce((t,s)=>t+(n(s.uses)||0),0);
     return `<div class="row" onclick="open_(${a.id})">
@@ -378,6 +468,7 @@ function render(){
   const el=document.getElementById('app');
   if(view==='form') el.innerHTML=renderForm();
   else if(view==='detail') el.innerHTML=renderDetail();
+  else if(view==='settings') el.innerHTML=renderSettings();
   else { el.innerHTML=renderRoster(); setTimeout(list,0) }
 }
 
