@@ -90,7 +90,7 @@ function newArtist(){draft={sounds:[{},{},{}],potential:[],urgency:2};editing=fa
 function editArtist(id){const a=artists.find(x=>x.id===id);draft=JSON.parse(JSON.stringify(a));if(!draft.sounds)draft.sounds=[{},{},{}];while(draft.sounds.length<3)draft.sounds.push({});editing=true;spRes=[];go('form')}
 function del(id){if(confirm('Delete this artist?')){artists=artists.filter(a=>a.id!==id);save();go('roster')}}
 
-/* ---------- Spotify autofill (existing /api/spotify proxy) ---------- */
+/* ---------- Spotify autofill ---------- */
 async function spSearch(){
   const q=document.getElementById('sp-q')?.value?.trim(); if(!q)return;
   const st=document.getElementById('sp-st'), rs=document.getElementById('sp-rs');
@@ -131,73 +131,125 @@ async function spPick(i){
   }catch(e){ st.textContent='Could not load releases — '+e.message; }
 }
 
-/* ---------- TikTok: sound lookup by song title ---------- */
-async function findSound(slotIndex){
-  const nameEl = document.getElementById(slotIndex==='top'?'f-tops':'f-s'+slotIndex+'n');
-  const artistName = document.getElementById('f-name')?.value?.trim();
-  const query = nameEl?.value?.trim();
-  const statusId = slotIndex==='top'?'tt-top-st':'tt-s'+slotIndex+'-st';
-  const st = document.getElementById(statusId);
-  if(!query){ if(st) st.innerHTML='<span style="color:#b3261e">Enter a song title first.</span>'; return; }
-  if(!rapidKey){ if(st) st.innerHTML='<span style="color:#b3261e">Add your RapidAPI key in Settings first.</span>'; return; }
-  if(st) st.textContent='Searching TikTok sounds…';
+/* ---------- TikTok sound discovery ---------- */
+function parseHandle(input){
+  if(!input) return '';
+  const s=String(input).trim();
+  const m=s.match(/tiktok\.com\/@([A-Za-z0-9._-]+)/i);
+  if(m) return m[1];
+  return s.replace(/^@/,'').replace(/\/+$/,'').split('?')[0];
+}
+
+async function discoverFromProfile(){
+  const handle=parseHandle(document.getElementById('tt-profile')?.value);
+  const st=document.getElementById('tt-st');
+  if(!handle){ if(st) st.textContent='Paste their TikTok profile link or @handle first.'; return; }
+  if(!rapidKey){ if(st) st.textContent='Add your RapidAPI key in Settings first.'; return; }
+  if(st) st.textContent='Looking up @'+handle+'…';
+  const results=document.getElementById('tt-results');
+  if(results) results.innerHTML='';
   try{
-    const r = await fetch(`https://scraptik.p.rapidapi.com/search-sounds?keyword=${encodeURIComponent(query)}&cursor=0`,{
+    const ur=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{
       headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}
     });
-    const d = await r.json();
-    const list = d?.music || [];
-    const qWords = query.toLowerCase().split(/\s+/).filter(w=>w.length>2);
-    const titleMatches = m => {
-      const t1 = (m.title||'').toLowerCase();
-      const t2 = (m.matched_song?.title||m.matched_pgc_sound?.title||'').toLowerCase();
-      const full = query.toLowerCase();
-      if(t1.includes(full) || t2.includes(full)) return true;
-      // fallback: most significant words present
-      if(!qWords.length) return false;
-      const hit = w => t1.includes(w) || t2.includes(w);
-      return qWords.filter(hit).length >= Math.ceil(qWords.length*0.6);
-    };
-
-    let matches = list.filter(titleMatches);
-    if(!matches.length) matches = list; // nothing matched title closely — fall back to full list, flagged below
-
-    if(artistName){
-      const an = artistName.toLowerCase();
-      const byArtist = matches.filter(m => {
-        const directAuthor = (m.author||'').toLowerCase();
-        const matchedAuthor = (m.matched_song?.author||m.matched_pgc_sound?.author||'').toLowerCase();
-        return directAuthor.includes(an) || matchedAuthor.includes(an);
-      });
-      if(byArtist.length) matches = byArtist;
-    }
-    matches.sort((a,b)=>(b.user_count||0)-(a.user_count||0));
-    const best = matches[0];
-    if(!best){ if(st) st.innerHTML='<span style="color:#b3261e">No sounds found for that title.</span>'; return; }
-    const bestTitleOk = titleMatches(best);
-    if(slotIndex==='top'){
-      window._topSoundUses = best.user_count||'';
-      const box=document.getElementById('tt-top-uses');
-      if(box) box.innerHTML = `<strong>${fmt(best.user_count)}</strong> videos`;
-    } else {
-      const usesId='f-s'+slotIndex+'u';
-      const el=document.getElementById(usesId); if(el) el.value = best.user_count||'';
-    }
-    if(st){
-      const matchedAuthor = best.matched_song?.author||best.matched_pgc_sound?.author||'';
-      const isDirectMatch = artistName && (best.author||'').toLowerCase().includes(artistName.toLowerCase());
-      const isIndirectMatch = artistName && matchedAuthor.toLowerCase().includes(artistName.toLowerCase());
-      const authorNote = isDirectMatch
-        ? `matched to <strong>${esc(best.author)}</strong>`
-        : isIndirectMatch
-          ? `contains music from <strong>${esc(matchedAuthor)}</strong>`
-          : `⚠ author is <strong>${esc(best.author)}</strong> — verify this is the right sound`;
-      const titleNote = bestTitleOk ? '' : `<br><span style="color:#b3261e">⚠ title "${esc(best.title)}" doesn't clearly match "${esc(query)}" — double check before trusting this number</span>`;
-      st.innerHTML = `<span style="color:#2e7d4f">✓ ${fmt(best.user_count)} videos</span> — ${authorNote}${titleNote}`;
-    }
+    const ud=await ur.json();
+    const u=ud?.user;
+    if(!u||!u.nickname){ if(st) st.textContent='Could not find that account — check the link.'; return; }
+    if(st) st.textContent='Found @'+handle+' ('+u.nickname+') — searching their sounds…';
+    await runSoundSearch(u.nickname, true);
   }catch(e){
-    if(st) st.innerHTML='<span style="color:#b3261e">Search failed — '+esc(e.message)+'</span>';
+    if(st) st.textContent='Lookup failed — '+e.message;
   }
+}
+
+async function findSound(){
+  const artistName=document.getElementById('f-name')?.value?.trim();
+  const query=document.getElementById('tt-search')?.value?.trim();
+  const st=document.getElementById('tt-st');
+  if(!query){ if(st) st.textContent='Type a song title first.'; return; }
+  if(!rapidKey){ if(st) st.textContent='Add your RapidAPI key in Settings first.'; return; }
+  if(st) st.textContent='Searching…';
+  await runSoundSearch(query, false, artistName);
+}
+
+async function runSoundSearch(keyword, isArtistSearch, authorFilterName){
+  const st=document.getElementById('tt-st');
+  const results=document.getElementById('tt-results');
+  if(results) results.innerHTML='';
+  try{
+    const r=await fetch(`https://scraptik.p.rapidapi.com/search-sounds?keyword=${encodeURIComponent(keyword)}&cursor=0`,{
+      headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}
+    });
+    const d=await r.json();
+    const list=d?.music||[];
+    let matches=list;
+
+    const filterName=(authorFilterName||(isArtistSearch?keyword:'')||'').toLowerCase();
+    if(filterName){
+      const byAuthor=list.filter(m=>{
+        const a1=(m.author||'').toLowerCase();
+        const a2=(m.matched_song?.author||m.matched_pgc_sound?.author||'').toLowerCase();
+        return a1.includes(filterName)||a2.includes(filterName);
+      });
+      if(byAuthor.length) matches=byAuthor;
+    }
+
+    if(!isArtistSearch){
+      const qWords=keyword.toLowerCase().split(/\s+/).filter(w=>w.length>2);
+      const titleMatches=m=>{
+        const t1=(m.title||'').toLowerCase();
+        const t2=(m.matched_song?.title||m.matched_pgc_sound?.title||'').toLowerCase();
+        const full=keyword.toLowerCase();
+        if(t1.includes(full)||t2.includes(full)) return true;
+        if(!qWords.length) return false;
+        const hit=w=>t1.includes(w)||t2.includes(w);
+        return qWords.filter(hit).length>=Math.ceil(qWords.length*0.6);
+      };
+      const titled=matches.filter(titleMatches);
+      if(titled.length) matches=titled;
+    }
+
+    matches.sort((a,b)=>(b.user_count||0)-(a.user_count||0));
+    matches=matches.slice(0,5);
+
+    if(st) st.textContent='';
+    if(!matches.length){
+      if(results) results.innerHTML=`<div class="warn">No sounds found. ${isArtistSearch?'Try the specific-song search below instead.':'Try a different title.'}</div>`;
+      return;
+    }
+    window._ttMatches=matches;
+    const header=isArtistSearch?`<p class="muted" style="margin-bottom:8px">Sounds credited to ${esc(keyword)}, ranked by usage:</p>`:'';
+    if(results) results.innerHTML=header+matches.map((m,i)=>{
+      const matchedAuthor=m.matched_song?.author||m.matched_pgc_sound?.author||'';
+      const authorLine=matchedAuthor && matchedAuthor.toLowerCase()!==(m.author||'').toLowerCase()
+        ? `${esc(m.author)} · from "${esc(matchedAuthor)}"` : esc(m.author||'Unknown');
+      return `<div class="sound" style="cursor:default">
+        <div style="flex:1">
+          <div style="font-weight:600">${esc(m.title)||'Untitled'}</div>
+          <div class="muted">${authorLine}</div>
+        </div>
+        <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div><strong>${fmt(m.user_count)}</strong> videos</div>
+          <div class="btnrow" style="gap:5px">
+            <button type="button" onclick="useSoundSlot(${i},0)" style="font-size:12px;padding:4px 9px">→ Slot 1</button>
+            <button type="button" onclick="useSoundSlot(${i},1)" style="font-size:12px;padding:4px 9px">→ Slot 2</button>
+            <button type="button" onclick="useSoundSlot(${i},2)" style="font-size:12px;padding:4px 9px">→ Slot 3</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    if(st) st.textContent='Search failed — '+e.message;
+  }
+}
+
+function useSoundSlot(matchIdx, slotIdx){
+  const m=window._ttMatches?.[matchIdx];
+  if(!m) return;
+  const nameEl=document.getElementById('f-s'+slotIdx+'n');
+  const usesEl=document.getElementById('f-s'+slotIdx+'u');
+  if(nameEl) nameEl.value=m.title||'';
+  if(usesEl) usesEl.value=m.user_count||'';
 }
 
 /* ---------------------------- SETTINGS ---------------------------- */
@@ -208,10 +260,10 @@ function renderSettings(){
   <p class="muted" style="margin:4px 0 22px">Stored in this browser only.</p>
   <div style="max-width:460px">
     <div class="field" style="margin-bottom:14px">
-      <label>RapidAPI key (ScrapTik — for TikTok sounds)</label>
+      <label>RapidAPI key (ScrapTik — TikTok data)</label>
       <input type="password" id="s-rk" value="${esc(rapidKey)}" placeholder="Paste key">
     </div>
-    <button class="primary" onclick="rapidKey=document.getElementById('s-rk').value.trim();saveCreds();go('roster')">Save</button>
+    <button class="primary" type="button" onclick="rapidKey=document.getElementById('s-rk').value.trim();saveCreds();go('roster')">Save</button>
   </div>`;
 }
 
@@ -227,7 +279,7 @@ function renderForm(){
     <h3>Autofill from Spotify</h3>
     <div style="display:flex;gap:8px">
       <input id="sp-q" placeholder="Search artist name…" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();spSearch()}">
-      <button onclick="spSearch()" style="white-space:nowrap">Search</button>
+      <button type="button" onclick="spSearch()" style="white-space:nowrap">Search</button>
     </div>
     <div id="sp-st" class="muted" style="min-height:16px;margin-top:6px"></div>
     <div id="sp-rs"></div><div id="sp-ok"></div>
@@ -323,8 +375,8 @@ function renderForm(){
     <textarea id="f-notes" rows="3" placeholder="Why they caught your eye, who's around them, what you'd do with them…">${esc(b.notes)}</textarea></div>
 
   <div class="btnrow">
-    <button class="primary" onclick="submitForm()">${editing?'Save changes':'Add artist'}</button>
-    <button onclick="go('roster')">Cancel</button>
+    <button class="primary" type="button" onclick="submitForm()">${editing?'Save changes':'Add artist'}</button>
+    <button type="button" onclick="go('roster')">Cancel</button>
   </div>`;
 }
 
@@ -344,7 +396,7 @@ function submitForm(){
     recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
     recentType: draft?.recentType||'',
     igFollowers:g('f-igf'), igEngagement:g('f-ige'),
-    tiktok:g('f-tt'), sounds,
+    sounds,
     urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes')
   };
   if(editing){ artists=artists.map(a=>a.id===rec.id?rec:a) } else { artists.push(rec) }
@@ -356,7 +408,6 @@ function renderDetail(){
   const a=artists.find(x=>x.id===selId); if(!a) return '';
   const sounds=(a.sounds||[]).filter(s=>s.name||s.uses);
   const total=sounds.reduce((t,s)=>t+(n(s.uses)||0),0);
-  const handle=parseHandle(a.tiktok);
   return `
   <button class="back" onclick="go('roster')">← roster</button>
   <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px">
@@ -372,8 +423,8 @@ function renderDetail(){
       </div>
     </div>
     <div class="btnrow" style="height:fit-content">
-      <button onclick="editArtist(${a.id})">Edit</button>
-      <button class="danger" onclick="del(${a.id})">Delete</button>
+      <button type="button" onclick="editArtist(${a.id})">Edit</button>
+      <button class="danger" type="button" onclick="del(${a.id})">Delete</button>
     </div>
   </div>
 
@@ -404,7 +455,6 @@ function renderDetail(){
 
   <div class="section">
     <h3>TikTok sounds${total?` — ${fmt(total)} videos total`:''}</h3>
-    ${handle?`<p class="muted" style="margin:-6px 0 10px"><a href="https://tiktok.com/@${esc(handle)}" target="_blank" style="color:#2f4c9c">@${esc(handle)}</a></p>`:''}
     ${sounds.length?sounds.map(s=>`<div class="sound">
       <div style="flex:1;font-weight:550">${esc(s.name)||'<span class="muted">Untitled</span>'}</div>
       <div class="muted">${fmt(n(s.uses))} videos</div></div>`).join(''):
@@ -424,8 +474,8 @@ function renderRoster(){
     <div><h1>Artist scout</h1>
       <p class="muted" style="margin-top:4px">${artists.length} artist${artists.length!==1?'s':''}</p></div>
     <div class="btnrow">
-      <button onclick="go('settings')">⚙</button>
-      <button class="primary" onclick="newArtist()">+ Add artist</button>
+      <button type="button" onclick="go('settings')">⚙</button>
+      <button class="primary" type="button" onclick="newArtist()">+ Add artist</button>
     </div>
   </div>
   <div style="display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap">
