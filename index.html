@@ -121,7 +121,14 @@ async function spPick(i){
     const albums=d.albums?.items||[];
     let recent=null;
     albums.forEach(al=>{ if(!recent||al.release_date>recent.release_date) recent=al; });
-    if(recent){ setv('f-recs',recent.name); setv('f-recd',recent.release_date); draft.recentType=recent.album_type; }
+    if(recent){ setv('f-recs',recent.name); setv('f-recd',recent.release_date); draft.recentType=recent.album_type;
+      const lbl=document.querySelector('label[for="f-recs"]');
+      const recsField=document.getElementById('f-recs');
+      if(recsField){
+        const labelEl=recsField.parentElement.querySelector('label');
+        if(labelEl) labelEl.innerHTML=`Most recent release <span style="font-weight:400;color:#a8a294">(${esc(recent.album_type)})</span>`;
+      }
+    }
     st.textContent=''; document.getElementById('sp-q').value='';
     document.getElementById('sp-ok').innerHTML=`<div class="ok">
       ${draft.img?`<img src="${draft.img}">`:''}
