@@ -141,6 +141,55 @@ function open_(id){selId=id;go('detail')}
 function newArtist(){draft={sounds:[{},{},{}],potential:[],urgency:2};editing=false;spRes=[];go('form')}
 function editArtist(id){const a=artists.find(x=>x.id===id);draft=JSON.parse(JSON.stringify(a));if(!draft.sounds)draft.sounds=[{},{},{}];while(draft.sounds.length<3)draft.sounds.push({});editing=true;spRes=[];go('form')}
 function del(id){if(confirm('Delete this artist?')){artists=artists.filter(a=>a.id!==id);save();go('roster')}}
+function goSnap(id){selId=id;go('snap')}
+
+/* ---------- Snapshots ---------- */
+function renderSnap(){
+  const a=artists.find(x=>x.id===selId); if(!a) return '';
+  return `
+  <button class="back" type="button" onclick="go('detail')">← back</button>
+  <h2>Log snapshot</h2>
+  <p class="muted" style="margin:4px 0 22px">${esc(a.name)} — check in on their numbers today.</p>
+  <div style="max-width:500px">
+    <div class="field" style="max-width:200px;margin-bottom:16px"><label>Date</label><input type="date" id="sn-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="section">
+      <h3>Spotify</h3>
+      <div class="field"><label>Monthly listeners</label><input onblur="smartNum(this)" id="sn-ml" placeholder="e.g. 250K"></div>
+    </div>
+    <div class="section">
+      <h3>Instagram</h3>
+      <div class="grid2">
+        <div class="field"><label>Followers</label><input onblur="smartNum(this)" id="sn-igf" placeholder="e.g. 33.2M"></div>
+        <div class="field"><label>Engagement rate %</label><input type="number" step="0.01" id="sn-ige" placeholder="e.g. 4.2"></div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:16px"><label>Notable events <span style="color:#a8a294">(collabs, tours, features, etc.)</span></label>
+      <input id="sn-events" spellcheck="true" autocorrect="on" placeholder="e.g. Tour w/ [artist], feature on [song], signed to [label]"></div>
+    <div class="field" style="margin-bottom:20px"><label>Notes <span style="color:#a8a294">(optional)</span></label>
+      <textarea id="sn-notes" rows="2" spellcheck="true" autocorrect="on" placeholder="Anything else worth remembering about this check-in"></textarea></div>
+    <div class="btnrow">
+      <button class="primary" type="button" onclick="submitSnap()">Save snapshot</button>
+      <button type="button" onclick="go('detail')">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function submitSnap(){
+  const g=id=>document.getElementById(id)?.value?.trim()||'';
+  const snap={
+    date: g('sn-date')||new Date().toISOString().slice(0,10),
+    monthlyListeners: g('sn-ml'), igFollowers: g('sn-igf'), igEngagement: g('sn-ige'),
+    events: g('sn-events'), notes: g('sn-notes')
+  };
+  artists=artists.map(a=>a.id===selId?{...a,snapshots:[...(a.snapshots||[]),snap]}:a);
+  save(); go('detail');
+}
+
+function delSnap(idx){
+  if(!confirm('Delete this snapshot?')) return;
+  artists=artists.map(a=>a.id===selId?{...a,snapshots:(a.snapshots||[]).filter((_,i)=>i!==idx)}:a);
+  save(); go('detail');
+}
 
 /* ---------- Spotify autofill ---------- */
 async function spSearch(){
@@ -608,6 +657,7 @@ function render(){
   const el=document.getElementById('app');
   if(view==='form') el.innerHTML=renderForm();
   else if(view==='detail') el.innerHTML=renderDetail();
+  else if(view==='snap') el.innerHTML=renderSnap();
   else if(view==='settings') el.innerHTML=renderSettings();
   else { el.innerHTML=renderRoster(); setTimeout(list,0) }
 }
