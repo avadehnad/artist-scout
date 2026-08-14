@@ -460,9 +460,14 @@ function renderForm(){
     </div>
     <div class="grid3">
       <div class="field"><label>Most recent release</label>
-        <div style="position:relative">
-          <input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title" style="padding-right:70px">
-          <span id="f-rectype" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#a8a294;pointer-events:none">${b.recentType?`(${esc(b.recentType)})`:''}</span>
+        <div class="grid2" style="gap:8px">
+          <input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title">
+          <select id="f-rectype">
+            <option value=""${!b.recentType?' selected':''}>type…</option>
+            <option value="single"${b.recentType==='single'?' selected':''}>single</option>
+            <option value="ep"${b.recentType==='ep'?' selected':''}>ep</option>
+            <option value="album"${b.recentType==='album'?' selected':''}>album</option>
+          </select>
         </div>
       </div>
       <div class="field"><label>Listens</label><input onblur="smartNum(this)" id="f-recl" value="${esc(b.recentPlays)}" placeholder="180K"></div>
@@ -549,7 +554,7 @@ function submitForm(){
     monthlyListeners:g('f-ml'),
     topSong:g('f-tops'), topSongPlays:g('f-topl'), topSongDate:g('f-topd'),
     recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
-    recentType: draft?.recentType||'',
+    recentType: g('f-rectype')||draft?.recentType||'',
     igFollowers:g('f-igf'), igEngagement:g('f-ige'),
     sounds,
     urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes'),
