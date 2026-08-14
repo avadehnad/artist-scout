@@ -440,7 +440,7 @@ function renderDetail(){
       <div class="metric"><div class="ml">Monthly listeners</div><div class="mv">${fmt(n(a.monthlyListeners))}</div></div>
       ${a.topSong?`<div class="metric"><div class="ml">Top song</div><div class="mv" style="font-size:14px">${esc(a.topSong)}</div>
         <div class="ms">${fmt(n(a.topSongPlays))} plays${a.topSongDate?' · '+dt(a.topSongDate):''}</div></div>`:''}
-      ${a.recentRelease?`<div class="metric"><div class="ml">Most recent</div><div class="mv" style="font-size:14px">${esc(a.recentRelease)}</div>
+      ${a.recentRelease?`<div class="metric"><div class="ml">Most recent</div><div class="mv" style="font-size:14px">${esc(a.recentRelease)}${a.recentType?` <span style="font-weight:400;color:#8a8578;font-size:12px">(${esc(a.recentType)})</span>`:''}</div>
         <div class="ms">${fmt(n(a.recentPlays))} plays${a.recentDate?' · '+dt(a.recentDate):''}</div></div>`:''}
     </div>
   </div>
