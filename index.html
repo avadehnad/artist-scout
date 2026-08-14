@@ -403,7 +403,7 @@ function renderForm(){
   </div>
 
   <div class="field" style="margin-bottom:24px"><label>Notes</label>
-    <textarea id="f-notes" rows="3" placeholder="Why they caught your eye, who's around them, what you'd do with them…">${esc(b.notes)}</textarea></div>
+    <textarea id="f-notes" rows="3" spellcheck="true" autocorrect="on" autocapitalize="sentences" placeholder="Why they caught your eye, who's around them, what you'd do with them…">${esc(b.notes)}</textarea></div>
 
   <div class="btnrow">
     <button class="primary" type="button" onclick="submitForm()">${editing?'Save changes':'Add artist'}</button>
