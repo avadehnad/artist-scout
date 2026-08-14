@@ -77,7 +77,11 @@ function load(){
 function save(){ localStorage.setItem(KEY,JSON.stringify(artists)) }
 function saveCreds(){ localStorage.setItem(CKEY,JSON.stringify({rk:rapidKey})) }
 
-const n=v=>(v===''||v==null)?null:Number(v);
+const n=v=>{ if(v===''||v==null) return null; const c=String(v).replace(/,/g,''); const num=Number(c); return isNaN(num)?null:num; };
+function commaNum(el){
+  let digits=el.value.replace(/[^\d]/g,'');
+  el.value = digits ? Number(digits).toLocaleString('en-US') : '';
+}
 const fmt=v=>{if(v==null||v==='')return '—';v=Number(v);if(isNaN(v))return '—';return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v)};
 const pctv=v=>v==null?'—':Number(v).toFixed(2)+'%';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -252,7 +256,7 @@ function useSoundSlot(matchIdx, slotIdx){
   const nameEl=document.getElementById('f-s'+slotIdx+'n');
   const usesEl=document.getElementById('f-s'+slotIdx+'u');
   if(nameEl) nameEl.value=m.title||'';
-  if(usesEl) usesEl.value=m.user_count||'';
+  if(usesEl) usesEl.value=m.user_count?Number(m.user_count).toLocaleString('en-US'):'';
 }
 
 /* ---------------------------- SETTINGS ---------------------------- */
@@ -308,11 +312,11 @@ function renderForm(){
   <div class="section">
     <h3>Spotify</h3>
     <div class="field" style="max-width:300px;margin-bottom:14px">
-      <label>Monthly listeners</label><input type="number" id="f-ml" value="${esc(b.monthlyListeners)}" placeholder="e.g. 250000">
+      <label>Monthly listeners</label><input inputmode="numeric" oninput="commaNum(this)" id="f-ml" value="${esc(b.monthlyListeners)}" placeholder="e.g. 250,000">
     </div>
     <div class="grid3" style="margin-bottom:12px">
       <div class="field"><label>Top song</label><input id="f-tops" value="${esc(b.topSong)}" placeholder="Song title"></div>
-      <div class="field"><label>Listens</label><input type="number" id="f-topl" value="${esc(b.topSongPlays)}" placeholder="4200000"></div>
+      <div class="field"><label>Listens</label><input inputmode="numeric" oninput="commaNum(this)" id="f-topl" value="${esc(b.topSongPlays)}" placeholder="4,200,000"></div>
       <div class="field"><label>Released</label><input type="date" id="f-topd" value="${esc(b.topSongDate)}"></div>
     </div>
     <div class="grid3">
@@ -322,7 +326,7 @@ function renderForm(){
           <span id="f-rectype" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#a8a294;pointer-events:none">${b.recentType?`(${esc(b.recentType)})`:''}</span>
         </div>
       </div>
-      <div class="field"><label>Listens</label><input type="number" id="f-recl" value="${esc(b.recentPlays)}" placeholder="180000"></div>
+      <div class="field"><label>Listens</label><input inputmode="numeric" oninput="commaNum(this)" id="f-recl" value="${esc(b.recentPlays)}" placeholder="180,000"></div>
       <div class="field"><label>Released</label><input type="date" id="f-recd" value="${esc(b.recentDate)}"></div>
     </div>
   </div>
@@ -330,7 +334,7 @@ function renderForm(){
   <div class="section">
     <h3>Instagram</h3>
     <div class="grid2">
-      <div class="field"><label>Followers</label><input type="number" id="f-igf" value="${esc(b.igFollowers)}" placeholder="e.g. 45000"></div>
+      <div class="field"><label>Followers</label><input inputmode="numeric" oninput="commaNum(this)" id="f-igf" value="${esc(b.igFollowers)}" placeholder="e.g. 45,000"></div>
       <div class="field"><label>Engagement rate %</label><input type="number" step="0.01" id="f-ige" value="${esc(b.igEngagement)}" placeholder="e.g. 4.2"></div>
     </div>
   </div>
@@ -359,7 +363,7 @@ function renderForm(){
       <div class="field"><label>Sound ${i+1}</label>
         <input id="f-s${i}n" value="${esc(s[i]?.name)}" placeholder="Song / audio name"></div>
       <div class="field"><label>Videos using it</label>
-        <input type="number" id="f-s${i}u" value="${esc(s[i]?.uses)}" placeholder="e.g. 12400"></div>
+        <input inputmode="numeric" oninput="commaNum(this)" id="f-s${i}u" value="${esc(s[i]?.uses)}" placeholder="e.g. 12,400"></div>
     </div>`).join('')}
   </div>
 
