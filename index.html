@@ -310,7 +310,7 @@ function renderForm(){
       <div class="field"><label>Released</label><input type="date" id="f-topd" value="${esc(b.topSongDate)}"></div>
     </div>
     <div class="grid3">
-      <div class="field"><label>Most recent release</label><input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title"></div>
+      <div class="field"><label>Most recent release${b.recentType?` <span style="font-weight:400;color:#a8a294">(${esc(b.recentType)})</span>`:''}</label><input id="f-recs" value="${esc(b.recentRelease)}" placeholder="Title"></div>
       <div class="field"><label>Listens</label><input type="number" id="f-recl" value="${esc(b.recentPlays)}" placeholder="180000"></div>
       <div class="field"><label>Released</label><input type="date" id="f-recd" value="${esc(b.recentDate)}"></div>
     </div>
