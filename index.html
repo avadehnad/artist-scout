@@ -131,67 +131,73 @@ async function spPick(i){
   }catch(e){ st.textContent='Could not load releases — '+e.message; }
 }
 
-/* ---------- TikTok: profile link → top 3 sounds ---------- */
-function parseHandle(input){
-  if(!input) return '';
-  const s=String(input).trim();
-  const m=s.match(/tiktok\.com\/@([A-Za-z0-9._-]+)/i);
-  if(m) return m[1];
-  return s.replace(/^@/,'').replace(/\/+$/,'').split('?')[0];
-}
-
-async function fetchSounds(){
-  const raw=document.getElementById('f-tt')?.value;
-  const handle=parseHandle(raw);
-  const st=document.getElementById('tt-st');
-  const btn=document.getElementById('tt-btn');
-  if(!handle){ st.innerHTML='<span style="color:#b3261e">Paste their TikTok profile link or @handle first.</span>'; return }
-  if(!rapidKey){ st.innerHTML='<span style="color:#b3261e">Add your RapidAPI key in Settings first.</span>'; return }
-  btn.disabled=true; st.textContent='Looking up @'+handle+'…';
-  const H={'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'};
+/* ---------- TikTok: sound lookup by song title ---------- */
+async function findSound(slotIndex){
+  const nameEl = document.getElementById(slotIndex==='top'?'f-tops':'f-s'+slotIndex+'n');
+  const artistName = document.getElementById('f-name')?.value?.trim();
+  const query = nameEl?.value?.trim();
+  const statusId = slotIndex==='top'?'tt-top-st':'tt-s'+slotIndex+'-st';
+  const st = document.getElementById(statusId);
+  if(!query){ if(st) st.innerHTML='<span style="color:#b3261e">Enter a song title first.</span>'; return; }
+  if(!rapidKey){ if(st) st.innerHTML='<span style="color:#b3261e">Add your RapidAPI key in Settings first.</span>'; return; }
+  if(st) st.textContent='Searching TikTok sounds…';
   try{
-    const ur=await fetch(`https://scraptik.p.rapidapi.com/get-user?username=${encodeURIComponent(handle)}`,{headers:H});
-    const ud=await ur.json();
-    console.log('SCOUT get-user:',JSON.stringify(ud).slice(0,400));
-    const u=ud?.user;
-    if(!u||!u.uid){ st.innerHTML='<span style="color:#b3261e">Account not found — check the link.</span>'; btn.disabled=false; return }
-
-    st.textContent='Reading recent posts…';
-    const pr=await fetch(`https://scraptik.p.rapidapi.com/user-posts?user_id=${encodeURIComponent(u.uid)}&sec_user_id=${encodeURIComponent(u.sec_uid||'')}&count=30`,{headers:H});
-    const pd=await pr.json();
-    console.log('SCOUT user-posts:',JSON.stringify(pd).slice(0,800));
-    const vids=pd?.aweme_list||pd?.data?.aweme_list||pd?.itemList||[];
-
-    const byId={};
-    vids.forEach(v=>{
-      const m=v.music||v.musicInfo||v.music_info||{};
-      const id=m.id_str||m.id||m.mid;
-      if(!id) return;
-      const uses=Number(m.user_count||m.userCount||m.user_count_str||0)||0;
-      const title=m.title||m.musicName||m.album||'';
-      if(!byId[id]||uses>byId[id].uses) byId[id]={id,name:title,uses};
+    const r = await fetch(`https://scraptik.p.rapidapi.com/search-sounds?keyword=${encodeURIComponent(query)}&cursor=0`,{
+      headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}
     });
-    const top=Object.values(byId).sort((a,b)=>b.uses-a.uses).slice(0,3);
+    const d = await r.json();
+    const list = d?.music || [];
+    const qWords = query.toLowerCase().split(/\s+/).filter(w=>w.length>2);
+    const titleMatches = m => {
+      const t1 = (m.title||'').toLowerCase();
+      const t2 = (m.matched_song?.title||m.matched_pgc_sound?.title||'').toLowerCase();
+      const full = query.toLowerCase();
+      if(t1.includes(full) || t2.includes(full)) return true;
+      // fallback: most significant words present
+      if(!qWords.length) return false;
+      const hit = w => t1.includes(w) || t2.includes(w);
+      return qWords.filter(hit).length >= Math.ceil(qWords.length*0.6);
+    };
 
-    const setv=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v==null?'':String(v))};
-    top.forEach((s,i)=>{ setv('f-s'+i+'n',s.name); setv('f-s'+i+'u',s.uses||'') });
+    let matches = list.filter(titleMatches);
+    if(!matches.length) matches = list; // nothing matched title closely — fall back to full list, flagged below
 
-    st.textContent='';
-    const box=document.getElementById('tt-ok');
-    if(!top.length){
-      box.innerHTML=`<div class="warn">Found the account (${fmt(u.follower_count)} followers) but no sounds came back from their recent posts. Enter the sounds by hand below.</div>`;
+    if(artistName){
+      const an = artistName.toLowerCase();
+      const byArtist = matches.filter(m => {
+        const directAuthor = (m.author||'').toLowerCase();
+        const matchedAuthor = (m.matched_song?.author||m.matched_pgc_sound?.author||'').toLowerCase();
+        return directAuthor.includes(an) || matchedAuthor.includes(an);
+      });
+      if(byArtist.length) matches = byArtist;
+    }
+    matches.sort((a,b)=>(b.user_count||0)-(a.user_count||0));
+    const best = matches[0];
+    if(!best){ if(st) st.innerHTML='<span style="color:#b3261e">No sounds found for that title.</span>'; return; }
+    const bestTitleOk = titleMatches(best);
+    if(slotIndex==='top'){
+      window._topSoundUses = best.user_count||'';
+      const box=document.getElementById('tt-top-uses');
+      if(box) box.innerHTML = `<strong>${fmt(best.user_count)}</strong> videos`;
     } else {
-      box.innerHTML=`<div class="ok"><div>
-        <div style="font-weight:600">@${esc(handle)} · ${fmt(u.follower_count)} followers</div>
-        <div class="muted" style="margin-top:4px">Top sounds across their last ${vids.length} posts:</div>
-        ${top.map(s=>`<div class="muted">• <strong>${esc(s.name)||'Untitled'}</strong> — ${fmt(s.uses)} videos</div>`).join('')}
-        <div class="muted" style="margin-top:5px">Only covers sounds they've posted with — edits and fan-made sounds won't appear.</div>
-      </div></div>`;
+      const usesId='f-s'+slotIndex+'u';
+      const el=document.getElementById(usesId); if(el) el.value = best.user_count||'';
+    }
+    if(st){
+      const matchedAuthor = best.matched_song?.author||best.matched_pgc_sound?.author||'';
+      const isDirectMatch = artistName && (best.author||'').toLowerCase().includes(artistName.toLowerCase());
+      const isIndirectMatch = artistName && matchedAuthor.toLowerCase().includes(artistName.toLowerCase());
+      const authorNote = isDirectMatch
+        ? `matched to <strong>${esc(best.author)}</strong>`
+        : isIndirectMatch
+          ? `contains music from <strong>${esc(matchedAuthor)}</strong>`
+          : `⚠ author is <strong>${esc(best.author)}</strong> — verify this is the right sound`;
+      const titleNote = bestTitleOk ? '' : `<br><span style="color:#b3261e">⚠ title "${esc(best.title)}" doesn't clearly match "${esc(query)}" — double check before trusting this number</span>`;
+      st.innerHTML = `<span style="color:#2e7d4f">✓ ${fmt(best.user_count)} videos</span> — ${authorNote}${titleNote}`;
     }
   }catch(e){
-    st.innerHTML='<span style="color:#b3261e">Fetch failed — '+esc(e.message)+'</span>';
+    if(st) st.innerHTML='<span style="color:#b3261e">Search failed — '+esc(e.message)+'</span>';
   }
-  btn.disabled=false;
 }
 
 /* ---------------------------- SETTINGS ---------------------------- */
@@ -268,15 +274,20 @@ function renderForm(){
 
   <div class="section">
     <h3>TikTok sounds — top 3</h3>
-    <div class="field" style="margin-bottom:6px">
-      <label>TikTok profile link or @handle</label>
-      <div style="display:flex;gap:8px">
-        <input id="f-tt" value="${esc(b.tiktok)}" placeholder="https://tiktok.com/@artist  or  @artist" style="flex:1">
-        <button id="tt-btn" onclick="fetchSounds()" style="white-space:nowrap">Find sounds</button>
-      </div>
+    <p class="muted" style="margin:-6px 0 12px">Find their biggest sounds automatically, or search a specific title.</p>
+    <div class="field" style="margin-bottom:10px">
+      <button class="primary" onclick="discoverSounds()" style="width:100%">🔍 Discover ${b.name?esc(b.name)+"'s ":''}top TikTok sounds</button>
     </div>
-    <div id="tt-st" class="muted" style="min-height:16px"></div>
-    <div id="tt-ok" style="margin-bottom:14px"></div>
+    <div class="field" style="margin-bottom:6px">
+      <label style="font-size:12px;color:#a8a294">or check one specific song</label>
+      <div style="display:flex;gap:8px">
+        <input id="tt-search" placeholder="Song title…" style="flex:1"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();findSound();}">
+        <button onclick="findSound()" style="white-space:nowrap">Search</button>
+      </div>
+      <div id="tt-st" class="muted" style="font-size:12px;min-height:16px;margin-top:4px"></div>
+    </div>
+    <div id="tt-results" style="margin-bottom:16px"></div>
     ${[0,1,2].map(i=>`<div class="grid2" style="margin-bottom:10px">
       <div class="field"><label>Sound ${i+1}</label>
         <input id="f-s${i}n" value="${esc(s[i]?.name)}" placeholder="Song / audio name"></div>
