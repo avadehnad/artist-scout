@@ -274,16 +274,20 @@ function renderForm(){
 
   <div class="section">
     <h3>TikTok sounds — top 3</h3>
-    <p class="muted" style="margin:-6px 0 12px">Find their biggest sounds automatically, or search a specific title.</p>
+    <p class="muted" style="margin:-6px 0 12px">Paste their TikTok profile to auto-find their biggest sounds.</p>
     <div class="field" style="margin-bottom:10px">
-      <button class="primary" onclick="discoverSounds()" style="width:100%">🔍 Discover ${b.name?esc(b.name)+"'s ":''}top TikTok sounds</button>
+      <div style="display:flex;gap:8px">
+        <input id="tt-profile" placeholder="https://tiktok.com/@artist  or  @artist" style="flex:1"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();discoverFromProfile();}">
+        <button class="primary" type="button" onclick="discoverFromProfile()" style="white-space:nowrap">Find sounds</button>
+      </div>
     </div>
     <div class="field" style="margin-bottom:6px">
-      <label style="font-size:12px;color:#a8a294">or check one specific song</label>
+      <label style="font-size:12px;color:#a8a294">or check one specific song title</label>
       <div style="display:flex;gap:8px">
         <input id="tt-search" placeholder="Song title…" style="flex:1"
           onkeydown="if(event.key==='Enter'){event.preventDefault();findSound();}">
-        <button onclick="findSound()" style="white-space:nowrap">Search</button>
+        <button type="button" onclick="findSound()" style="white-space:nowrap">Search</button>
       </div>
       <div id="tt-st" class="muted" style="font-size:12px;min-height:16px;margin-top:4px"></div>
     </div>
