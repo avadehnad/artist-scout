@@ -61,7 +61,7 @@
 <body>
 <div class="app" id="app"></div>
 <script>
-const KEY='scout-v3', CKEY='scout-v3-creds';
+const KEY='scout-v3', CKEY='scout-v3-creds', DRAFTKEY='scout-v3-unsaved-draft';
 const GENRES=['Electronic','Pop','Indie/Alternative','R&B','Rap','Folk','International','Country'];
 const POTENTIALS=['Visual','Social','Artist Project','Publishing'];
 const URG={3:{label:'Move now',cls:'urg3'},2:{label:'Watch closely',cls:'urg2'},1:{label:'Keep an eye',cls:'urg1'}};
@@ -69,13 +69,45 @@ const URG={3:{label:'Move now',cls:'urg3'},2:{label:'Watch closely',cls:'urg2'},
 let artists=[], rapidKey='', view='roster', selId=null, draft=null, editing=false;
 let filterUrg='all', filterPot='all', search='';
 let spRes=[];
+let unsavedDraft=null;
 
 function load(){
   try{artists=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}
   try{rapidKey=(JSON.parse(localStorage.getItem(CKEY)||'{}')).rk||''}catch{}
+  try{ const raw=localStorage.getItem(DRAFTKEY); if(raw) unsavedDraft=JSON.parse(raw); }catch{}
 }
 function save(){ localStorage.setItem(KEY,JSON.stringify(artists)) }
 function saveCreds(){ localStorage.setItem(CKEY,JSON.stringify({rk:rapidKey})) }
+
+function snapshotForm(){
+  if(view!=='form'||editing) return;
+  const g=id=>document.getElementById(id)?.value||'';
+  const genres=[...document.querySelectorAll('.genre-cb')].filter(c=>c.checked).map(c=>c.value);
+  const pot=[...document.querySelectorAll('.pot-cb')].filter(c=>c.checked).map(c=>c.value);
+  const sounds=[0,1,2].map(i=>({name:g(`f-s${i}n`),uses:g(`f-s${i}u`)}));
+  const snap={
+    img:draft?.img||'', recentType:draft?.recentType||'',
+    name:g('f-name'), location:g('f-loc'), genres, poc:g('f-poc'),
+    monthlyListeners:g('f-ml'),
+    topSong:g('f-tops'), topSongPlays:g('f-topl'), topSongDate:g('f-topd'),
+    recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
+    igFollowers:g('f-igf'), igEngagement:g('f-ige'),
+    sounds, urgency:g('f-urg'), potential:pot, notes:g('f-notes')
+  };
+  const hasContent = snap.name || snap.location || snap.monthlyListeners || snap.topSong || snap.igFollowers || snap.notes || sounds.some(s=>s.name||s.uses);
+  if(hasContent) localStorage.setItem(DRAFTKEY, JSON.stringify(snap));
+}
+
+function restoreDraft(){
+  draft={...unsavedDraft, sounds: unsavedDraft.sounds||[{},{},{}]};
+  editing=false; spRes=[];
+  go('form');
+}
+function discardDraft(){
+  localStorage.removeItem(DRAFTKEY);
+  unsavedDraft=null;
+  render();
+}
 
 const n=v=>{ if(v===''||v==null) return null; const c=String(v).replace(/,/g,''); const num=Number(c); return isNaN(num)?null:num; };
 function commaNum(el){
@@ -432,7 +464,9 @@ function submitForm(){
     urgency:Number(g('f-urg')||2), potential:pot, notes:g('f-notes')
   };
   if(editing){ artists=artists.map(a=>a.id===rec.id?rec:a) } else { artists.push(rec) }
-  save(); draft=null; selId=rec.id; go('detail');
+  save();
+  localStorage.removeItem(DRAFTKEY); unsavedDraft=null;
+  draft=null; selId=rec.id; go('detail');
 }
 
 /* --------------------------- DETAIL --------------------------- */
@@ -501,7 +535,16 @@ function renderDetail(){
 
 /* --------------------------- ROSTER --------------------------- */
 function renderRoster(){
-  return `
+  const banner = unsavedDraft ? `
+  <div class="card" style="background:#fff8e1;border-color:#ecdcae;margin-bottom:20px">
+    <div style="font-weight:600;margin-bottom:6px">Unsaved artist info found</div>
+    <p class="muted" style="margin-bottom:12px">You had ${unsavedDraft.name?`"<strong style="color:#1a1a1a">${esc(unsavedDraft.name)}</strong>"`:'a new artist'} partly filled in before this page reloaded.</p>
+    <div class="btnrow">
+      <button class="primary" type="button" onclick="restoreDraft()">Load previous data</button>
+      <button type="button" onclick="discardDraft()">Discard</button>
+    </div>
+  </div>` : '';
+  return banner + `
   <div class="hrow">
     <div><h1>Artist scout</h1>
       <p class="muted" style="margin-top:4px">${artists.length} artist${artists.length!==1?'s':''}</p></div>
@@ -570,6 +613,8 @@ function render(){
 }
 
 load(); render();
+document.getElementById('app').addEventListener('input', snapshotForm);
+document.getElementById('app').addEventListener('change', snapshotForm);
 </script>
 </body>
 </html>
