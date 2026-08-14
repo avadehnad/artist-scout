@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -213,16 +214,46 @@ async function fetchTikTokInForm(){
     pendingBench._ttLikes=String(likes||'');
     pendingBench._ttVideos=String(videos||'');
     pendingBench.tiktokHandle=handle;
-    // Update fields inline
-    const ttfEl=document.getElementById('f-ttf');
-    if(ttfEl) ttfEl.value=String(followers);
+
+    // Second call: recent posts for real view + interaction data
+    if(statusEl) statusEl.textContent='Fetching recent posts…';
+    let avgViews=null, engRate=null, postsUsed=0;
+    try{
+      const uid=d?.user?.uid||'';
+      const secUid=d?.user?.sec_uid||'';
+      const pr=await fetch(`https://scraptik.p.rapidapi.com/user-posts?user_id=${encodeURIComponent(uid)}&sec_user_id=${encodeURIComponent(secUid)}&count=20`,{headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}});
+      const pd=await pr.json();
+      console.log('TikTok posts response:', JSON.stringify(pd).slice(0,400));
+      const list=pd?.aweme_list||pd?.data?.aweme_list||pd?.itemList||[];
+      let totViews=0, totInteractions=0;
+      list.forEach(v=>{
+        const s=v.statistics||v.stats||{};
+        const plays=s.play_count||s.playCount||0;
+        if(!plays) return;
+        totViews+=plays;
+        totInteractions+=(s.digg_count||s.diggCount||0)+(s.comment_count||s.commentCount||0)+(s.share_count||s.shareCount||0);
+        postsUsed++;
+      });
+      if(postsUsed>0&&totViews>0){
+        avgViews=Math.round(totViews/postsUsed);
+        engRate=totInteractions/totViews*100;
+      }
+    }catch(err){ console.log('Posts fetch failed:',err); }
+
+    const setVal=(id,val)=>{ const el=document.getElementById(id); if(el&&val!=null&&val!=='') el.value=String(val); };
+    setVal('f-ttf', followers);
+    setVal('f-ttv', avgViews);
+    setVal('f-tte', engRate!=null ? engRate.toFixed(2) : '');
+
     if(statusEl) statusEl.textContent='';
-    // Show blue summary card
     const card=document.getElementById('tt-form-card');
     if(card) card.innerHTML=`<div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:8px;padding:8px 12px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap">
       <div>👥 <strong>${fmt(n(followers))}</strong> followers</div>
-      ${likes?`<div>❤️ <strong>${fmt(n(likes))}</strong> likes</div>`:''}
-      ${videos?`<div>🎵 <strong>${fmt(n(videos))}</strong> videos</div>`:''}
+      ${likes?`<div>❤️ <strong>${fmt(n(likes))}</strong> lifetime likes</div>`:''}
+      ${videos?`<div>🎬 <strong>${fmt(n(videos))}</strong> videos</div>`:''}
+      ${avgViews!=null?`<div>▶️ <strong>${fmt(n(avgViews))}</strong> avg views</div>`:''}
+      ${engRate!=null?`<div>📊 <strong>${engRate.toFixed(2)}%</strong> engagement</div>`:''}
+      ${postsUsed>0?`<div style="width:100%;color:#666;font-size:11px;margin-top:2px">engagement = (likes + comments + shares) ÷ views, across last ${postsUsed} posts</div>`:`<div style="width:100%;color:#a67c00;font-size:11px;margin-top:2px">No recent posts returned — enter views/engagement manually</div>`}
     </div>`;
   }catch(e){
     if(statusEl) statusEl.textContent='Fetch failed — check your RapidAPI key in Settings';
@@ -358,9 +389,9 @@ function renderAdd(){
     <h3>TikTok baseline</h3>
     <div class="grid2" style="margin-bottom:12px">
       <div class="field"><label>Followers</label><input type="number" id="f-ttf" value="${b.tiktokFollowers||''}" placeholder="e.g. 80000"/></div>
-      <div class="field"><label>Avg views/video</label><input type="number" id="f-ttv" value="${b.tiktokViews||''}" placeholder="e.g. 12000"/></div>
+      <div class="field"><label>Avg views/video</label><input type="number" id="f-ttv" value="${b.tiktokViews||''}" placeholder="auto-filled"/></div>
     </div>
-    <div class="field" style="max-width:220px"><label>Engagement rate %</label><input type="number" id="f-tte" value="${b.tiktokEngagement||''}" placeholder="e.g. 5.1"/></div>
+    <div class="field" style="max-width:220px"><label>Engagement rate %</label><input type="number" id="f-tte" value="${b.tiktokEngagement||''}" placeholder="auto-filled"/></div>
   </div>
   <div class="section">
     <h3>Branding & strategy</h3>
