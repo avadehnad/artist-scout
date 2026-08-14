@@ -62,7 +62,7 @@
 <div class="app" id="app"></div>
 <script>
 const KEY='scout-v3', CKEY='scout-v3-creds';
-const GENRES=['Afrobeats','Alternative','Country','Dance/Electronic','Drill','Hip-Hop','House','Indie','Jersey Club','Latin','Pop','Punk','R&B','Rock','Soul','Other'];
+const GENRES=['Electronic','Pop','Indie/Alternative','R&B','Rap','Folk','International','Country'];
 const POTENTIALS=['Visual','Social','Artist Project','Publishing'];
 const URG={3:{label:'Move now',cls:'urg3'},2:{label:'Watch closely',cls:'urg2'},1:{label:'Keep an eye',cls:'urg1'}};
 
@@ -294,12 +294,15 @@ function renderForm(){
       <div class="field"><label>Artist name *</label><input id="f-name" value="${esc(b.name)}" placeholder="Name"></div>
       <div class="field"><label>Location</label><input id="f-loc" value="${esc(b.location)}" placeholder="City, Country"></div>
     </div>
-    <div class="grid2">
-      <div class="field"><label>Genre</label><select id="f-genre"><option value="">Select…</option>
-        ${GENRES.map(g=>`<option${b.genre===g?' selected':''}>${g}</option>`).join('')}</select></div>
-      <div class="field"><label>Point of contact <span style="color:#a8a294">(optional)</span></label>
-        <input id="f-poc" value="${esc(b.poc)}" placeholder="Manager, email, @handle"></div>
+    <div class="field" style="margin-bottom:12px">
+      <label style="margin-bottom:3px">Genre — select all that apply</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${GENRES.map(g=>`<label class="chk${(b.genres||[]).includes(g)?' on':''}" onclick="setTimeout(()=>this.classList.toggle('on',this.querySelector('input').checked),0)">
+          <input type="checkbox" value="${g}" class="genre-cb"${(b.genres||[]).includes(g)?' checked':''}>${g}</label>`).join('')}
+      </div>
     </div>
+    <div class="field"><label>Point of contact <span style="color:#a8a294">(optional)</span></label>
+      <input id="f-poc" value="${esc(b.poc)}" placeholder="Manager, email, @handle"></div>
   </div>
 
   <div class="section">
@@ -393,12 +396,13 @@ function submitForm(){
   const name=g('f-name');
   if(!name){alert('Artist name is required');return}
   const pot=[...document.querySelectorAll('.pot-cb')].filter(c=>c.checked).map(c=>c.value);
+  const genres=[...document.querySelectorAll('.genre-cb')].filter(c=>c.checked).map(c=>c.value);
   const sounds=[0,1,2].map(i=>({name:g(`f-s${i}n`),uses:g(`f-s${i}u`)})).filter(s=>s.name||s.uses);
   const rec={
     id: editing?draft.id:Date.now(),
     added: editing?draft.added:new Date().toISOString().slice(0,10),
     img: draft?.img||'',
-    name, location:g('f-loc'), genre:g('f-genre'), poc:g('f-poc'),
+    name, location:g('f-loc'), genres, poc:g('f-poc'),
     monthlyListeners:g('f-ml'),
     topSong:g('f-tops'), topSongPlays:g('f-topl'), topSongDate:g('f-topd'),
     recentRelease:g('f-recs'), recentPlays:g('f-recl'), recentDate:g('f-recd'),
@@ -425,7 +429,7 @@ function renderDetail(){
         <h2>${esc(a.name)}</h2>
         <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:6px">
           ${urgBadge(a.urgency)}
-          ${a.genre?`<span class="muted">${esc(a.genre)}</span>`:''}
+          ${(a.genres||[]).map(g=>`<span class="muted">${esc(g)}</span>`).join('')}
           ${a.location?`<span class="muted">${esc(a.location)}</span>`:''}
         </div>
       </div>
@@ -507,7 +511,7 @@ function list(){
   const el=document.getElementById('list'); if(!el)return;
   const q=search.toLowerCase();
   const rows=artists
-    .filter(a=>(!q||a.name.toLowerCase().includes(q)||(a.genre||'').toLowerCase().includes(q)||(a.location||'').toLowerCase().includes(q))
+    .filter(a=>(!q||a.name.toLowerCase().includes(q)||(a.genres||[]).some(g=>g.toLowerCase().includes(q))||(a.location||'').toLowerCase().includes(q))
       &&(filterUrg==='all'||String(a.urgency)===filterUrg)
       &&(filterPot==='all'||(a.potential||[]).includes(filterPot)))
     .sort((x,y)=>(y.urgency||0)-(x.urgency||0)||y.id-x.id);
@@ -523,7 +527,7 @@ function list(){
               <span style="font-weight:650">${esc(a.name)}</span>${urgBadge(a.urgency)}
             </div>
             <div class="muted" style="margin-top:3px;display:flex;gap:9px;flex-wrap:wrap">
-              ${a.genre?`<span>${esc(a.genre)}</span>`:''}${a.location?`<span>${esc(a.location)}</span>`:''}
+              ${(a.genres||[]).map(g=>`<span>${esc(g)}</span>`).join('')}${a.location?`<span>${esc(a.location)}</span>`:''}
             </div>
             ${(a.potential||[]).length?`<div style="margin-top:5px">${a.potential.map(p=>`<span class="pot">${esc(p)}</span>`).join('')}</div>`:''}
           </div>
