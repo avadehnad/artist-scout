@@ -316,6 +316,7 @@ function useSoundSlot(matchIdx, slotIdx){
 /* ---------- Snapshots ---------- */
 function renderSnap(){
   const a=artists.find(x=>x.id===selId); if(!a) return '';
+  const sounds=(a.sounds||[]).filter(s=>s.name);
   return `
   <button class="back" type="button" onclick="go('detail')">← back</button>
   <h2>Log snapshot</h2>
@@ -333,6 +334,16 @@ function renderSnap(){
         <div class="field"><label>Engagement rate %</label><input type="number" step="0.01" id="sn-ige" placeholder="e.g. 4.2"></div>
       </div>
     </div>
+    ${sounds.length?`<div class="section">
+      <h3>TikTok sounds</h3>
+      <button type="button" onclick="fetchSnapSoundCounts()" style="width:100%;margin-bottom:10px">↻ Fetch current TikTok numbers</button>
+      <div id="sn-tt-status" class="muted" style="min-height:16px;margin-bottom:8px"></div>
+      ${sounds.map((s,i)=>`<div class="grid2" style="margin-bottom:8px;align-items:end">
+        <div class="field"><label style="font-size:12px">${esc(s.name)}</label>
+          <div class="muted" style="font-size:12px">was ${fmt(n(s.uses))} videos</div></div>
+        <div class="field"><label>Now</label><input onblur="smartNum(this)" id="sn-tt${i}" placeholder="e.g. ${fmt(n(s.uses))}"></div>
+      </div>`).join('')}
+    </div>`:''}
     <div class="field" style="margin-bottom:16px"><label>Notable events <span style="color:#a8a294">(collabs, tours, features, etc.)</span></label>
       <input id="sn-events" spellcheck="true" autocorrect="on" placeholder="e.g. Tour w/ [artist], feature on [song], signed to [label]"></div>
     <div class="field" style="margin-bottom:20px"><label>Notes <span style="color:#a8a294">(optional)</span></label>
@@ -344,11 +355,37 @@ function renderSnap(){
   </div>`;
 }
 
+async function fetchSnapSoundCounts(){
+  const a=artists.find(x=>x.id===selId); if(!a) return;
+  const sounds=(a.sounds||[]).filter(s=>s.name);
+  const st=document.getElementById('sn-tt-status');
+  if(!rapidKey){ if(st) st.textContent='Add your RapidAPI key in Settings first.'; return; }
+  if(st) st.textContent='Checking current numbers…';
+  for(let i=0;i<sounds.length;i++){
+    try{
+      const r=await fetch(`https://scraptik.p.rapidapi.com/search-sounds?keyword=${encodeURIComponent(sounds[i].name)}&cursor=0`,{
+        headers:{'x-rapidapi-key':rapidKey,'x-rapidapi-host':'scraptik.p.rapidapi.com'}
+      });
+      const d=await r.json();
+      const list=d?.music||[];
+      const qn=sounds[i].name.toLowerCase();
+      const exact=list.find(m=>(m.title||'').toLowerCase()===qn);
+      const best=exact||list.sort((x,y)=>(y.user_count||0)-(x.user_count||0))[0];
+      const el=document.getElementById('sn-tt'+i);
+      if(best && el) el.value=Number(best.user_count||0).toLocaleString('en-US');
+    }catch(e){}
+  }
+  if(st) st.textContent='Done — double check these before saving, matches aren\\'t always exact.';
+}
+
 function submitSnap(){
+  const a=artists.find(x=>x.id===selId);
   const g=id=>document.getElementById(id)?.value?.trim()||'';
+  const sounds=(a?.sounds||[]).filter(s=>s.name).map((s,i)=>({name:s.name, uses:g('sn-tt'+i)})).filter(s=>s.uses);
   const snap={
     date: g('sn-date')||new Date().toISOString().slice(0,10),
     monthlyListeners: g('sn-ml'), igFollowers: g('sn-igf'), igEngagement: g('sn-ige'),
+    sounds,
     events: g('sn-events'), notes: g('sn-notes')
   };
   artists=artists.map(a=>a.id===selId?{...a,snapshots:[...(a.snapshots||[]),snap]}:a);
@@ -535,6 +572,9 @@ function renderDetail(){
   const growthHtml=v=>v==null?'':`<div class="ms" style="color:${v>=0?'#2e7d4f':'#b3261e'}">${v>=0?'↑':'↓'} ${Math.abs(v).toFixed(1)}% since added</div>`;
   const mlGrowth = latest ? gpct(n(a.monthlyListeners), n(latest.monthlyListeners)) : null;
   const igGrowth = latest ? gpct(n(a.igFollowers), n(latest.igFollowers)) : null;
+  const origTtTotal = sounds.reduce((t,s)=>t+(n(s.uses)||0),0);
+  const latestTtTotal = latest && latest.sounds ? latest.sounds.reduce((t,s)=>t+(n(s.uses)||0),0) : null;
+  const ttGrowth = latestTtTotal!=null ? gpct(origTtTotal, latestTtTotal) : null;
   return `
   <button class="back" type="button" onclick="go('roster')">← roster</button>
   <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px">
@@ -583,6 +623,7 @@ function renderDetail(){
 
   <div class="section">
     <h3>TikTok sounds${total?` — ${fmt(total)} videos total`:''}</h3>
+    ${ttGrowth!=null?growthHtml(ttGrowth):''}
     ${sounds.length?sounds.map(s=>`<div class="sound">
       <div style="flex:1;font-weight:550">${esc(s.name)||'<span class="muted">Untitled</span>'}</div>
       <div class="muted">${fmt(n(s.uses))} videos</div></div>`).join(''):
